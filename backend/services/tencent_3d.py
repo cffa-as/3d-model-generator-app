@@ -122,17 +122,17 @@ class TencentHunyuan3DService:
                 
         raise Exception(f"任务超时，已等待{self.model_config['max_retries'] * self.model_config['retry_interval']}秒")
     
-    async def generate_from_text(self, text: str, style: Optional[str] = None) -> Dict:
+    async def generate_from_text(self, text: str, result_format: Optional[str] = None, enable_pbr: bool = False) -> Dict:
         """从文本生成3D模型"""
         try:
             if len(text.encode('utf-8')) > 1024:
                 raise ValueError("文本长度超过1024字符限制")
             
-            # 准备请求
+            # 创建请求对象
             req = models.SubmitHunyuanTo3DJobRequest()
             req.Prompt = text
-            req.ResultFormat = self.model_config["result_format"]
-            req.EnablePBR = self.model_config["enable_pbr"]
+            req.ResultFormat = result_format or self.model_config["result_format"]
+            req.EnablePBR = enable_pbr
             
             # 提交任务并等待结果
             job_id = await self._submit_task_with_retry(
@@ -143,7 +143,7 @@ class TencentHunyuan3DService:
         except Exception as e:
             raise Exception(f"生成3D模型失败: {str(e)}")
     
-    async def generate_from_image(self, image_path: str, style: Optional[str] = None) -> Dict:
+    async def generate_from_image(self, image_path: str, result_format: Optional[str] = None, enable_pbr: bool = False) -> Dict:
         """从图片生成3D模型"""
         try:
             self._validate_image(image_path)
@@ -151,11 +151,11 @@ class TencentHunyuan3DService:
             with open(image_path, "rb") as f:
                 image_base64 = base64.b64encode(f.read()).decode()
             
-            # 准备请求
+            # 创建请求对象
             req = models.SubmitHunyuanTo3DJobRequest()
             req.ImageBase64 = image_base64
-            req.ResultFormat = self.model_config["result_format"]
-            req.EnablePBR = self.model_config["enable_pbr"]
+            req.ResultFormat = result_format or self.model_config["result_format"]
+            req.EnablePBR = enable_pbr
             
             # 提交任务并等待结果
             job_id = await self._submit_task_with_retry(

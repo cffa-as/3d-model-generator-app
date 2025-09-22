@@ -41,7 +41,8 @@ Content-Type: application/json
 
 {
     "text": "一把红色的椅子",
-    "style": "现代简约"  // 可选
+    "result_format": "OBJ",  // 可选，默认OBJ。可选值：OBJ，GLB，STL，USDZ，FBX，MP4
+    "enable_pbr": false      // 可选，是否开启PBR材质生成，默认false
 }
 ```
 
@@ -50,8 +51,22 @@ Content-Type: application/json
 POST /api/image2model
 Content-Type: multipart/form-data
 
-file: [图片文件]
-style: 现代简约  // 可选
+file: [图片文件]  // 支持jpg、png、jpeg、webp格式，分辨率128-5000，大小不超过6MB
+result_format: OBJ  // 可选，默认OBJ。可选值：OBJ，GLB，STL，USDZ，FBX，MP4
+enable_pbr: false   // 可选，是否开启PBR材质生成，默认false
+```
+
+### 响应格式
+```json
+{
+    "status": "success",
+    "message": "模型生成成功",
+    "data": {
+        "preview_url": "预览图片URL",
+        "model_url": "3D模型文件URL",
+        "model_type": "OBJ"  // 模型格式
+    }
+}
 ```
 
 ### 启动服务

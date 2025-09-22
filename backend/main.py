@@ -29,7 +29,8 @@ app.add_middleware(
 # 请求模型
 class Text2ModelRequest(BaseModel):
     text: str
-    style: Optional[str] = None
+    result_format: Optional[str] = None
+    enable_pbr: Optional[bool] = False
 
 @app.get("/")
 async def read_root():
@@ -37,13 +38,12 @@ async def read_root():
 
 @app.post("/api/text2model")
 async def text_to_model(request: Text2ModelRequest):
-    """
-    根据文本描述生成3D模型
-    """
+    """根据文本描述生成3D模型"""
     try:
         result = await tencent_3d.generate_from_text(
             text=request.text,
-            style=request.style
+            result_format=request.result_format,
+            enable_pbr=request.enable_pbr
         )
         
         if result["Status"] == "FAIL":
@@ -67,11 +67,10 @@ async def text_to_model(request: Text2ModelRequest):
 @app.post("/api/image2model")
 async def image_to_model(
     file: UploadFile = File(...),
-    style: Optional[str] = None
+    result_format: Optional[str] = None,
+    enable_pbr: Optional[bool] = False
 ):
-    """
-    根据上传的图片生成3D模型
-    """
+    """根据上传的图片生成3D模型"""
     try:
         # 验证文件类型
         if file.content_type not in config["allowed_image_types"]:
@@ -90,7 +89,8 @@ async def image_to_model(
             # 调用服务生成模型
             result = await tencent_3d.generate_from_image(
                 image_path=file_path,
-                style=style
+                result_format=result_format,
+                enable_pbr=enable_pbr
             )
             
             if result["Status"] == "FAIL":
