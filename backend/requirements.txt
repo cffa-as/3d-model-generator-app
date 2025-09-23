@@ -6,4 +6,6 @@ pydantic==2.4.2
 pillow==10.1.0
 tencentcloud-sdk-python==3.0.1462
 tencentcloud-sdk-python-ai3d==3.0.1462
-pyyaml==6.0.1 
+pyyaml==6.0.1
+sse-starlette==1.8.2
+httpx==0.25.1 

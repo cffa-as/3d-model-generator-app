@@ -1,58 +1,57 @@
 import asyncio
-import httpx
-import os
-import json
+import time
+from services.meshy_client import meshy_client
 
-# 配置
-API_URL = "http://localhost:8000"  # FastAPI服务地址
-TEST_TEXT = "一个红色的现代风格办公椅，有扶手和轮子"  # 测试文本
-
-async def test_text_to_model():
-    """测试文生3D模型功能"""
+async def test_meshy():
+    """测试 Meshy API"""
+    print("开始测试 Meshy API...")
     
-    print(f"开始测试文生3D模型功能...")
-    print(f"测试文本: {TEST_TEXT}")
+    # 1. 创建预览任务
+    print("\n1. 创建预览任务")
+    preview_response = await meshy_client.create_preview_task("一只皮卡丘")
+    preview_task_id = preview_response["result"]
+    print(f"预览任务ID: {preview_task_id}")
     
-    async with httpx.AsyncClient() as client:
-        try:
-            # 发送请求
-            print("\n发送请求中...")
-            response = await client.post(
-                f"{API_URL}/api/text2model",
-                json={
-                    "text": TEST_TEXT,
-                    "style": "现代简约"
-                },
-                timeout=300.0  # 5分钟超时
-            )
+    # 2. 等待预览任务完成
+    print("\n2. 等待预览任务完成")
+    while True:
+        task = await meshy_client.get_task(preview_task_id)
+        print(f"进度: {task['progress']}%, 状态: {task['status']}")
+        
+        if task["status"] == "SUCCEEDED":
+            print("\n预览任务完成!")
+            break
+        elif task["status"] in ["FAILED", "CANCELED"]:
+            print(f"\n预览任务失败: {task.get('task_error', {}).get('message', '未知错误')}")
+            return
             
-            # 检查响应状态
-            if response.status_code == 200:
-                result = response.json()
-                print("\n请求成功!")
-                print("状态:", result["status"])
-                print("消息:", result["message"])
-                print("\n生成的模型信息:")
-                print("预览图片URL:", result["data"]["preview_url"])
-                print("模型文件URL:", result["data"]["model_url"])
-                print("模型类型:", result["data"]["model_type"])
-            else:
-                print(f"\n请求失败! 状态码: {response.status_code}")
-                try:
-                    error_data = response.json()
-                    print("错误信息:", json.dumps(error_data, indent=2, ensure_ascii=False))
-                except:
-                    print("错误信息:", response.text)
-                
-        except httpx.TimeoutException:
-            print("\n请求超时! 这可能是因为模型生成需要较长时间。")
-        except Exception as e:
-            print(f"\n发生错误: {str(e)}")
+        await asyncio.sleep(5)  # 每5秒检查一次
+    
+    # 3. 创建精细化任务
+    print("\n3. 创建精细化任务")
+    refine_response = await meshy_client.create_refine_task(preview_task_id, enable_pbr=True)
+    refine_task_id = refine_response["result"]
+    print(f"精细化任务ID: {refine_task_id}")
+    
+    # 4. 等待精细化任务完成
+    print("\n4. 等待精细化任务完成")
+    while True:
+        task = await meshy_client.get_task(refine_task_id)
+        print(f"进度: {task['progress']}%, 状态: {task['status']}")
+        
+        if task["status"] == "SUCCEEDED":
+            print("\n精细化任务完成!")
+            print("\n生成的模型信息:")
+            print(f"预览图片: {task['thumbnail_url']}")
+            print(f"模型文件: {task['model_urls']}")
+            if task.get("texture_urls"):
+                print(f"贴图文件: {task['texture_urls']}")
+            break
+        elif task["status"] in ["FAILED", "CANCELED"]:
+            print(f"\n精细化任务失败: {task.get('task_error', {}).get('message', '未知错误')}")
+            return
+            
+        await asyncio.sleep(5)  # 每5秒检查一次
 
 if __name__ == "__main__":
-    # 确保后端服务已启动
-    print("注意: 请确保后端服务已经启动并运行在 http://localhost:8000")
-    input("按回车键开始测试...")
-    
-    # 运行测试
-    asyncio.run(test_text_to_model()) 
+    asyncio.run(test_meshy())
