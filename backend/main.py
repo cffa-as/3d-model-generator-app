@@ -1,12 +1,10 @@
-from fastapi import FastAPI, HTTPException
+from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
-from pydantic import BaseModel
-from typing import Optional
-from services.meshy_client import meshy_client
+from routes import users, tasks, admin
 
 app = FastAPI(
     title="3D模型生成API",
-    description="提供 Meshy 3D模型生成服务的API接口",
+    description="提供3D模型生成服务的API接口",
     version="1.0.0",
 )
 
@@ -19,57 +17,27 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-class PreviewRequest(BaseModel):
-    prompt: str
-    enable_pbr: Optional[bool] = False
-
-class RefineRequest(BaseModel):
-    preview_task_id: str
-    enable_pbr: Optional[bool] = False
-    texture_prompt: Optional[str] = None
-
-@app.post("/api/meshy/preview")
-async def create_preview(request: PreviewRequest):
-    """创建预览任务"""
-    try:
-        response = await meshy_client.create_preview_task(request.prompt)
-        return response
-    except Exception as e:
-        raise HTTPException(status_code=500, detail=str(e))
-
-@app.post("/api/meshy/refine")
-async def create_refine(request: RefineRequest):
-    """创建精细化任务"""
-    try:
-        response = await meshy_client.create_refine_task(
-            request.preview_task_id,
-            enable_pbr=request.enable_pbr
-        )
-        return response
-    except Exception as e:
-        raise HTTPException(status_code=500, detail=str(e))
-
-@app.get("/api/meshy/task/{task_id}")
-async def get_task(task_id: str):
-    """获取任务状态"""
-    try:
-        response = await meshy_client.get_task(task_id)
-        return response
-    except Exception as e:
-        raise HTTPException(status_code=500, detail=str(e))
+# 包含路由
+app.include_router(users.router, prefix="/api/users", tags=["users"])
+app.include_router(tasks.router, prefix="/api/tasks", tags=["tasks"])
+app.include_router(admin.router, prefix="/api/admin", tags=["admin"])
 
 @app.get("/")
 async def read_root():
     return {
         "message": "3D模型生成服务已启动",
-        "services": {
-            "meshy": {
-                "description": "Meshy 3D模型生成服务",
-                "endpoints": [
-                    "/api/meshy/preview - 创建预览任务",
-                    "/api/meshy/refine - 创建精细化任务",
-                    "/api/meshy/task/{task_id} - 获取任务状态"
-                ]
+        "endpoints": {
+            "users": {
+                "register": "/api/users/register - 用户注册",
+                "login": "/api/users/token - 用户登录"
+            },
+            "tasks": {
+                "generate": "/api/tasks/generate - 创建3D模型生成任务",
+                "list": "/api/tasks/tasks - 获取任务列表",
+                "status": "/api/tasks/tasks/{task_id} - 获取任务状态"
+            },
+            "admin": {
+                "statistics": "/api/admin/statistics - 获取基础统计数据"
             }
         }
     }
