@@ -8,7 +8,7 @@ mysql:
 
 meshy:
   api_key: "" 
-  base_url: "https://api.meshy.ai"  # 添加基础URL配置
+  base_url: "https://api.meshy.ai"  
 
 upload:
   dir: "./uploads"

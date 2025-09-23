@@ -19,6 +19,16 @@ class UserInDB(UserBase):
     is_admin: bool = False
     created_at: Optional[str] = None
 
+class User(BaseModel):
+    """用户响应模型"""
+    model_config = ConfigDict(from_attributes=True)
+    
+    id: int
+    username: str
+    email: str
+    is_admin: bool = False
+    created_at: Optional[str] = None
+
 class Token(BaseModel):
     """令牌模型"""
     access_token: str

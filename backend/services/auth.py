@@ -13,7 +13,7 @@ logger = logging.getLogger(__name__)
 # JWT配置
 SECRET_KEY = "your-secret-key"  # 在生产环境中应该使用环境变量
 ALGORITHM = "HS256"
-ACCESS_TOKEN_EXPIRE_MINUTES = 30
+ACCESS_TOKEN_EXPIRE_MINUTES = 60 * 24 * 7  # 7天过期
 
 # OAuth2
 oauth2_scheme = OAuth2PasswordBearer(tokenUrl="token")

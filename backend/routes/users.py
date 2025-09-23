@@ -3,8 +3,8 @@ from fastapi.security import OAuth2PasswordBearer, OAuth2PasswordRequestForm
 from typing import Dict, Any
 import logging
 from services.db import Database
-from services.auth import create_access_token
-from models.user import UserCreate, Token
+from services.auth import create_access_token, get_current_user
+from models.user import UserCreate, Token, User
 
 # 配置日志
 logger = logging.getLogger(__name__)
@@ -12,6 +12,31 @@ logger = logging.getLogger(__name__)
 router = APIRouter()
 db = Database()
 oauth2_scheme = OAuth2PasswordBearer(tokenUrl="token")
+
+@router.get("/me", response_model=User)
+async def get_user_me(current_user: Dict = Depends(get_current_user)):
+    """获取当前用户信息"""
+    try:
+        query = """
+            SELECT id, username, email, is_admin, created_at
+            FROM users
+            WHERE id = %s
+        """
+        user = await db.fetch_one(query, (current_user["user_id"],))
+        
+        if not user:
+            raise HTTPException(status_code=404, detail="用户不存在")
+            
+        return {
+            "id": user["id"],
+            "username": user["username"],
+            "email": user["email"],
+            "is_admin": user["is_admin"],
+            "created_at": user["created_at"].isoformat() if user["created_at"] else None
+        }
+    except Exception as e:
+        logger.error("获取用户信息失败: %s", str(e))
+        raise HTTPException(status_code=500, detail=str(e))
 
 @router.post("/register")
 async def register_user(user: UserCreate) -> Dict[str, Any]:
@@ -92,4 +117,21 @@ async def login_for_access_token(form_data: OAuth2PasswordRequestForm = Depends(
         raise
     except Exception as e:
         logger.error("用户登录失败: %s", str(e))
+        raise HTTPException(status_code=500, detail=str(e)) 
+
+@router.post("/refresh")
+async def refresh_token(current_user: dict = Depends(get_current_user)) -> Dict[str, str]:
+    """刷新访问令牌"""
+    try:
+        # 创建新的访问令牌
+        access_token = create_access_token(
+            data={
+                "user_id": current_user["user_id"],
+                "username": current_user["username"],
+                "is_admin": current_user["is_admin"]
+            }
+        )
+        return {"access_token": access_token}
+    except Exception as e:
+        logger.error("刷新token失败: %s", str(e))
         raise HTTPException(status_code=500, detail=str(e)) 

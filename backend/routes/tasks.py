@@ -1,4 +1,4 @@
-from fastapi import APIRouter, Depends, HTTPException, UploadFile, File
+from fastapi import APIRouter, Depends, HTTPException, UploadFile, File, Response
 from typing import Dict, Any, List
 import base64
 import json
@@ -7,6 +7,7 @@ from services.db import Database
 from services.auth import get_current_user
 from services.meshy_client import meshy_client
 from models.task import TaskCreate
+import httpx
 
 # 配置日志
 logger = logging.getLogger(__name__)
@@ -333,6 +334,42 @@ async def get_task_status(task_id: str, current_user: dict = Depends(get_current
 
     except Exception as e:
         logger.error("获取任务状态失败: %s", str(e))
+        raise HTTPException(status_code=500, detail=str(e))
+
+@router.get("/preview/{task_id}")
+async def get_task_preview(task_id: str, current_user: dict = Depends(get_current_user)) -> Response:
+    """获取任务预览图"""
+    try:
+        # 从数据库获取任务
+        query = """
+            SELECT thumbnail_url
+            FROM generation_tasks
+            WHERE task_id = %s AND user_id = %s
+        """
+        task = await db.fetch_one(query, (task_id, current_user["user_id"]))
+        
+        logger.info("获取预览图任务: %s, URL: %s", task_id, task["thumbnail_url"] if task else None)
+
+        if not task or not task["thumbnail_url"]:
+            raise HTTPException(status_code=404, detail="预览图不存在")
+
+        # 获取预览图
+        async with httpx.AsyncClient(timeout=30.0) as client:
+            logger.info("开始从Meshy获取预览图: %s", task["thumbnail_url"])
+            response = await client.get(
+                task["thumbnail_url"],
+                headers=meshy_client.headers
+            )
+            response.raise_for_status()
+            logger.info("成功获取预览图: %s, 大小: %d bytes", task_id, len(response.content))
+            
+            return Response(
+                content=response.content,
+                media_type=response.headers.get("content-type", "image/png")
+            )
+
+    except Exception as e:
+        logger.error("获取预览图失败: %s", str(e))
         raise HTTPException(status_code=500, detail=str(e))
 
 @router.post("/upload")
