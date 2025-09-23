@@ -1,0 +1,15 @@
+mysql:
+  host: localhost
+  port: 3306
+  user: root
+  password: "123456"
+  db: model_generator
+  charset: utf8mb4
+
+meshy:
+  api_key: "" 
+  base_url: "https://api.meshy.ai"  # 添加基础URL配置
+
+upload:
+  dir: "./uploads"
+  max_size: 10485760  # 10MB in bytes 
