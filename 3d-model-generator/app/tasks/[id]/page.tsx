@@ -360,7 +360,7 @@ function TaskDetailPage() {
                           variant="outline"
                           size="sm"
                           onClick={() => downloadModel(url, `model.${format}`)}
-                          className="text-xs"
+                          className="text-xs hover:bg-blue-50 hover:text-blue-600 cursor-pointer transition-colors"
                         >
                           <Download className="h-3 w-3 mr-1" />
                           {format.toUpperCase()}
@@ -385,14 +385,16 @@ function TaskDetailPage() {
                       if (!url) return null
 
                       return (
-                        <Badge
+                        <Button
                           key={key}
                           variant="outline"
-                          className={cn("cursor-pointer", color)}
-                          onClick={() => setActiveTexture(activeTexture === key ? null : key)}
+                          size="sm"
+                          onClick={() => downloadModel(url, `texture_${key}.jpg`)}
+                          className="text-xs hover:bg-blue-50 hover:text-blue-600 cursor-pointer transition-colors"
                         >
+                          <Download className="h-3 w-3 mr-1" />
                           {label}
-                        </Badge>
+                        </Button>
                       )
                     })}
                   </div>

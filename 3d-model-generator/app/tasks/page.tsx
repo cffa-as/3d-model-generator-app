@@ -373,7 +373,11 @@ function TasksPage() {
                         {task.status === "completed" && (task.model_urls || task.texture_urls) && (
                           <Dialog open={showDownloadDialog === task.task_id} onOpenChange={(open) => setShowDownloadDialog(open ? task.task_id : null)}>
                             <DialogTrigger asChild>
-                              <Button variant="outline" size="sm" className="text-blue-500 hover:text-blue-600">
+                              <Button 
+                                variant="outline" 
+                                size="sm" 
+                                className="text-blue-500 hover:text-blue-600 hover:bg-blue-50 cursor-pointer transition-colors"
+                              >
                                 <Download className="h-4 w-4 mr-1" />
                                 下载文件
                               </Button>
@@ -397,7 +401,7 @@ function TasksPage() {
                                               downloadModel(url, `model.${format}`)
                                               setShowDownloadDialog(null)
                                             }}
-                                            className="text-xs"
+                                            className="text-xs hover:bg-blue-50 hover:text-blue-600 cursor-pointer transition-colors"
                                           >
                                             <Download className="h-3 w-3 mr-1" />
                                             {format.toUpperCase()}
@@ -424,7 +428,7 @@ function TasksPage() {
                                               downloadModel(url, `texture_${key}.jpg`)
                                               setShowDownloadDialog(null)
                                             }}
-                                            className="text-xs"
+                                            className="text-xs hover:bg-blue-50 hover:text-blue-600 cursor-pointer transition-colors"
                                           >
                                             <Download className="h-3 w-3 mr-1" />
                                             {label}
