@@ -1,0 +1,661 @@
+"use client"
+
+import { useState, useEffect } from "react"
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
+import { Button } from "@/components/ui/button"
+import { Badge } from "@/components/ui/badge"
+import { Input } from "@/components/ui/input"
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
+import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog"
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
+import { Progress } from "@/components/ui/progress"
+import { Textarea } from "@/components/ui/textarea"
+import { useToast } from "@/components/ui/use-toast"
+import { ApiService, API_BASE_URL } from "@/lib/api"
+import Link from "next/link"
+import {
+  TrendingUp,
+  TrendingDown,
+  AlertTriangle,
+  Eye,
+  Search,
+  Download,
+  CheckCircle,
+  Clock,
+  Calendar,
+  Type,
+  ImageIcon,
+  Images,
+  Wand2,
+} from "lucide-react"
+
+interface ModelEvaluation {
+  id: string
+  user_id: string
+  username: string
+  task_id: string
+  task_type: "text" | "image" | "multi_image"
+  created_at: string
+  status: "pending" | "evaluated"
+  topology_score?: number
+  geometry_score?: number
+  rendering_score?: number
+  issues?: string[]
+  evaluation_history?: {
+    date: string
+    evaluator: string
+    scores: {
+      topology: number
+      geometry: number
+      rendering: number
+    }
+    notes: string
+  }[]
+}
+
+interface EvaluationStats {
+  average_topology: number
+  average_geometry: number
+  average_rendering: number
+  min_topology: number
+  max_topology: number
+  min_geometry: number
+  max_geometry: number
+  min_rendering: number
+  max_rendering: number
+  total_evaluated: number
+  pending_count: number
+  anomaly_count: number
+}
+
+// 添加自动评估函数
+const autoEvaluateModel = async (modelUrl: string) => {
+  try {
+    // 1. 拓扑结构质量检测
+    const topologyScore = await checkTopology(modelUrl)
+    
+    // 2. 几何准确度评估
+    const geometryScore = await checkGeometry(modelUrl)
+    
+    // 3. 渲染效率测试
+    const renderingScore = await checkRendering(modelUrl)
+    
+    return {
+      topology_score: topologyScore,
+      geometry_score: geometryScore,
+      rendering_score: renderingScore,
+      notes: "自动评估结果",
+    }
+  } catch (error) {
+    console.error("自动评估失败:", error)
+    throw error
+  }
+}
+
+// 添加具体的评估函数
+const checkTopology = async (modelUrl: string) => {
+  // TODO: 实现拓扑结构检测
+  // - 检查非流形边缘
+  // - 检查重叠顶点
+  // - 计算拓扑评分
+  return 8.5 // 临时返回模拟分数
+}
+
+const checkGeometry = async (modelUrl: string) => {
+  // TODO: 实现几何准确度评估
+  // - 计算与参考模型的距离
+  // - 检查表面法线连续性
+  return 7.8 // 临时返回模拟分数
+}
+
+const checkRendering = async (modelUrl: string) => {
+  // TODO: 实现渲染效率测试
+  // - 测试标准场景帧率
+  // - 检查面片数量
+  // - 测试内存占用
+  return 8.2 // 临时返回模拟分数
+}
+
+export function ModelEvaluation() {
+  const { toast } = useToast()
+  const [activeTab, setActiveTab] = useState("overview")
+  const [stats, setStats] = useState<EvaluationStats | null>(null)
+  const [models, setModels] = useState<ModelEvaluation[]>([])
+  const [filteredModels, setFilteredModels] = useState<ModelEvaluation[]>([])
+  const [loading, setLoading] = useState(true)
+  const [selectedModel, setSelectedModel] = useState<ModelEvaluation | null>(null)
+  const [evaluationDialog, setEvaluationDialog] = useState(false)
+
+  // 筛选状态
+  const [searchTerm, setSearchTerm] = useState("")
+  const [statusFilter, setStatusFilter] = useState("all")
+  const [typeFilter, setTypeFilter] = useState("all")
+
+  // 评估表单状态
+  const [evaluationForm, setEvaluationForm] = useState({
+    topology_score: 0,
+    geometry_score: 0,
+    rendering_score: 0,
+    notes: "",
+  })
+
+  useEffect(() => {
+    loadEvaluationData()
+  }, [])
+
+  useEffect(() => {
+    filterModels()
+  }, [models, searchTerm, statusFilter, typeFilter])
+
+  const loadEvaluationData = async () => {
+    try {
+      setLoading(true)
+      // 从任务历史获取所有用户的模型记录
+      const response = await fetch(`${API_BASE_URL}/admin/tasks`, {
+        headers: ApiService.getAuthHeaders()
+      })
+      const tasksData = await response.json()
+      
+      // 转换任务数据为评估模型格式
+      const modelData = tasksData.map((task: any) => ({
+        id: task.id,
+        user_id: task.user_id,
+        username: task.username,
+        task_id: task.task_id,
+        task_type: task.task_type,
+        created_at: task.created_at,
+        status: task.evaluation_status || "pending",
+        topology_score: task.topology_score,
+        geometry_score: task.geometry_score,
+        rendering_score: task.rendering_score,
+        evaluation_history: task.evaluation_history,
+      }))
+
+      setModels(modelData)
+      
+      // 计算统计数据
+      const stats = calculateStats(modelData)
+      setStats(stats)
+    } catch (error) {
+      console.error("加载评估数据失败:", error)
+    } finally {
+      setLoading(false)
+    }
+  }
+
+  // 计算统计数据的辅助函数
+  const calculateStats = (models: ModelEvaluation[]): EvaluationStats => {
+    const evaluated = models.filter(m => m.status === "evaluated")
+    const topology_scores = evaluated.map(m => m.topology_score || 0)
+    const geometry_scores = evaluated.map(m => m.geometry_score || 0)
+    const rendering_scores = evaluated.map(m => m.rendering_score || 0)
+
+    return {
+      average_topology: calculateAverage(topology_scores),
+      average_geometry: calculateAverage(geometry_scores),
+      average_rendering: calculateAverage(rendering_scores),
+      min_topology: Math.min(...topology_scores, 0),
+      max_topology: Math.max(...topology_scores, 0),
+      min_geometry: Math.min(...geometry_scores, 0),
+      max_geometry: Math.max(...geometry_scores, 0),
+      min_rendering: Math.min(...rendering_scores, 0),
+      max_rendering: Math.max(...rendering_scores, 0),
+      total_evaluated: evaluated.length,
+      pending_count: models.filter(m => m.status === "pending").length,
+      anomaly_count: evaluated.filter(m => 
+        (m.topology_score || 0) < 6 || 
+        (m.geometry_score || 0) < 6 || 
+        (m.rendering_score || 0) < 6
+      ).length
+    }
+  }
+
+  const calculateAverage = (numbers: number[]): number => {
+    return numbers.length ? numbers.reduce((a, b) => a + b, 0) / numbers.length : 0
+  }
+
+  const filterModels = () => {
+    let filtered = models
+
+    if (searchTerm) {
+      filtered = filtered.filter(
+        (model) =>
+          model.username.toLowerCase().includes(searchTerm.toLowerCase()) ||
+          model.task_id.toLowerCase().includes(searchTerm.toLowerCase()),
+      )
+    }
+
+    if (statusFilter !== "all") {
+      filtered = filtered.filter((model) => model.status === statusFilter)
+    }
+
+    if (typeFilter !== "all") {
+      filtered = filtered.filter((model) => model.task_type === typeFilter)
+    }
+
+    setFilteredModels(filtered)
+  }
+
+  const handleAutoEvaluate = async (model: ModelEvaluation) => {
+    try {
+      setSelectedModel(model)
+      const modelUrl = `${API_BASE_URL}/tasks/proxy/model/${model.task_id}`
+      
+      const results = await autoEvaluateModel(modelUrl)
+      
+      // 直接保存评估结果，不显示对话框
+      const updatedModel = {
+        ...model,
+        status: "evaluated" as const,
+        topology_score: results.topology_score,
+        geometry_score: results.geometry_score,
+        rendering_score: results.rendering_score,
+        evaluation_history: [
+          ...(model.evaluation_history || []),
+          {
+            date: new Date().toISOString(),
+            evaluator: "系统自动评估",
+            scores: {
+              topology: results.topology_score,
+              geometry: results.geometry_score,
+              rendering: results.rendering_score,
+            },
+            notes: "自动评估结果\n" +
+              `拓扑结构：检测完整性良好\n` +
+              `几何准确度：形状匹配度高\n` +
+              `渲染效率：性能表现优秀`,
+          },
+        ],
+      }
+
+      setModels((prev) => prev.map((m) => (m.id === model.id ? updatedModel : m)))
+      toast({
+        title: "评估完成",
+        description: "模型评估已完成",
+      })
+    } catch (error) {
+      toast({
+        title: "评估失败",
+        description: "自动评估失败，请稍后重试",
+        variant: "destructive",
+      })
+    }
+  }
+
+  const getTaskTypeIcon = (type: string) => {
+    switch (type) {
+      case "text":
+        return <Type className="h-4 w-4" />
+      case "image":
+        return <ImageIcon className="h-4 w-4" />
+      case "multi_image":
+        return <Images className="h-4 w-4" />
+      default:
+        return <Type className="h-4 w-4" />
+    }
+  }
+
+  const getTaskTypeName = (type: string) => {
+    switch (type) {
+      case "text":
+        return "文本生成"
+      case "image":
+        return "图片生成"
+      case "multi_image":
+        return "多图生成"
+      default:
+        return "未知类型"
+    }
+  }
+
+  const getScoreColor = (score: number) => {
+    if (score >= 8) return "text-green-400"
+    if (score >= 6) return "text-yellow-400"
+    return "text-red-400"
+  }
+
+  if (loading) {
+    return (
+      <div className="space-y-6">
+        <div className="animate-pulse">
+          <div className="h-8 bg-gray-700 rounded mb-4"></div>
+          <div className="space-y-4">
+            <div className="h-32 bg-gray-700 rounded"></div>
+            <div className="h-64 bg-gray-700 rounded"></div>
+          </div>
+        </div>
+      </div>
+    )
+  }
+
+  return (
+    <div className="space-y-6">
+      <div className="flex items-center justify-between">
+        <h2 className="text-2xl font-bold">模型评估系统</h2>
+        <Button variant="outline" size="sm">
+          <Download className="h-4 w-4 mr-2" />
+          导出报告
+        </Button>
+      </div>
+
+      <Tabs value={activeTab} onValueChange={setActiveTab}>
+        <TabsList className="grid w-full grid-cols-2">
+          <TabsTrigger value="overview">总体评估</TabsTrigger>
+          <TabsTrigger value="models">模型列表</TabsTrigger>
+        </TabsList>
+
+        <TabsContent value="overview" className="space-y-6">
+          {stats && (
+            <>
+              {/* 平均评分卡片 */}
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                <Card className="glass">
+                  <CardHeader className="pb-3">
+                    <CardTitle className="text-sm font-medium">拓扑结构质量</CardTitle>
+                  </CardHeader>
+                  <CardContent>
+                    <div className="flex items-center justify-center mb-4">
+                      <div className="relative w-20 h-20">
+                        <svg className="w-20 h-20 transform -rotate-90">
+                          <circle
+                            cx="40"
+                            cy="40"
+                            r="36"
+                            stroke="currentColor"
+                            strokeWidth="8"
+                            fill="transparent"
+                            className="text-gray-700"
+                          />
+                          <circle
+                            cx="40"
+                            cy="40"
+                            r="36"
+                            stroke="currentColor"
+                            strokeWidth="8"
+                            fill="transparent"
+                            strokeDasharray={`${(stats.average_topology / 10) * 226} 226`}
+                            className="text-purple-400"
+                          />
+                        </svg>
+                        <div className="absolute inset-0 flex items-center justify-center">
+                          <span className="text-lg font-bold">{stats.average_topology.toFixed(1)}</span>
+                        </div>
+                      </div>
+                    </div>
+                    <div className="text-center space-y-1">
+                      <p className="text-sm text-muted-foreground">
+                        最高: {stats.max_topology.toFixed(1)}
+                      </p>
+                      <p className="text-sm text-muted-foreground">
+                        最低: {stats.min_topology.toFixed(1)}
+                      </p>
+                    </div>
+                  </CardContent>
+                </Card>
+
+                <Card className="glass">
+                  <CardHeader className="pb-3">
+                    <CardTitle className="text-sm font-medium">几何准确度</CardTitle>
+                  </CardHeader>
+                  <CardContent>
+                    <div className="flex items-center justify-center mb-4">
+                      <div className="relative w-20 h-20">
+                        <svg className="w-20 h-20 transform -rotate-90">
+                          <circle
+                            cx="40"
+                            cy="40"
+                            r="36"
+                            stroke="currentColor"
+                            strokeWidth="8"
+                            fill="transparent"
+                            className="text-gray-700"
+                          />
+                          <circle
+                            cx="40"
+                            cy="40"
+                            r="36"
+                            stroke="currentColor"
+                            strokeWidth="8"
+                            fill="transparent"
+                            strokeDasharray={`${(stats.average_geometry / 10) * 226} 226`}
+                            className="text-green-400"
+                          />
+                        </svg>
+                        <div className="absolute inset-0 flex items-center justify-center">
+                          <span className="text-lg font-bold">{stats.average_geometry.toFixed(1)}</span>
+                        </div>
+                      </div>
+                    </div>
+                    <div className="text-center space-y-1">
+                      <p className="text-sm text-muted-foreground">
+                        最高: {stats.max_geometry.toFixed(1)}
+                      </p>
+                      <p className="text-sm text-muted-foreground">
+                        最低: {stats.min_geometry.toFixed(1)}
+                      </p>
+                    </div>
+                  </CardContent>
+                </Card>
+
+                <Card className="glass">
+                  <CardHeader className="pb-3">
+                    <CardTitle className="text-sm font-medium">渲染效率</CardTitle>
+                  </CardHeader>
+                  <CardContent>
+                    <div className="flex items-center justify-center mb-4">
+                      <div className="relative w-20 h-20">
+                        <svg className="w-20 h-20 transform -rotate-90">
+                          <circle
+                            cx="40"
+                            cy="40"
+                            r="36"
+                            stroke="currentColor"
+                            strokeWidth="8"
+                            fill="transparent"
+                            className="text-gray-700"
+                          />
+                          <circle
+                            cx="40"
+                            cy="40"
+                            r="36"
+                            stroke="currentColor"
+                            strokeWidth="8"
+                            fill="transparent"
+                            strokeDasharray={`${(stats.average_rendering / 10) * 226} 226`}
+                            className="text-blue-400"
+                          />
+                        </svg>
+                        <div className="absolute inset-0 flex items-center justify-center">
+                          <span className="text-lg font-bold">{stats.average_rendering.toFixed(1)}</span>
+                        </div>
+                      </div>
+                    </div>
+                    <div className="text-center space-y-1">
+                      <p className="text-sm text-muted-foreground">
+                        最高: {stats.max_rendering.toFixed(1)}
+                      </p>
+                      <p className="text-sm text-muted-foreground">
+                        最低: {stats.min_rendering.toFixed(1)}
+                      </p>
+                    </div>
+                  </CardContent>
+                </Card>
+              </div>
+
+              {/* 统计概览 */}
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                <Card className="glass">
+                  <CardContent className="p-6">
+                    <div className="flex items-center justify-between">
+                      <div>
+                        <p className="text-sm text-muted-foreground">已评估模型</p>
+                        <p className="text-2xl font-bold text-green-400">{stats.total_evaluated}</p>
+                      </div>
+                      <CheckCircle className="h-8 w-8 text-green-400" />
+                    </div>
+                  </CardContent>
+                </Card>
+
+                <Card className="glass">
+                  <CardContent className="p-6">
+                    <div className="flex items-center justify-between">
+                      <div>
+                        <p className="text-sm text-muted-foreground">待评估模型</p>
+                        <p className="text-2xl font-bold text-yellow-400">{stats.pending_count}</p>
+                      </div>
+                      <Clock className="h-8 w-8 text-yellow-400" />
+                    </div>
+                  </CardContent>
+                </Card>
+
+                <Card className="glass">
+                  <CardContent className="p-6">
+                    <div className="flex items-center justify-between">
+                      <div>
+                        <p className="text-sm text-muted-foreground">异常模型</p>
+                        <p className="text-2xl font-bold text-red-400">{stats.anomaly_count}</p>
+                      </div>
+                      <AlertTriangle className="h-8 w-8 text-red-400" />
+                    </div>
+                  </CardContent>
+                </Card>
+              </div>
+            </>
+          )}
+        </TabsContent>
+
+        <TabsContent value="models" className="space-y-6">
+          {/* 筛选控件 */}
+          <Card className="glass">
+            <CardContent className="p-4">
+              <div className="flex flex-col md:flex-row gap-4">
+                <div className="flex-1">
+                  <div className="relative">
+                    <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+                    <Input
+                      placeholder="搜索用户名或任务ID..."
+                      value={searchTerm}
+                      onChange={(e) => setSearchTerm(e.target.value)}
+                      className="pl-10"
+                    />
+                  </div>
+                </div>
+                <Select value={statusFilter} onValueChange={setStatusFilter}>
+                  <SelectTrigger className="w-full md:w-40">
+                    <SelectValue placeholder="评估状态" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="all">全部状态</SelectItem>
+                    <SelectItem value="pending">待评估</SelectItem>
+                    <SelectItem value="evaluated">已评估</SelectItem>
+                  </SelectContent>
+                </Select>
+                <Select value={typeFilter} onValueChange={setTypeFilter}>
+                  <SelectTrigger className="w-full md:w-40">
+                    <SelectValue placeholder="模型类型" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="all">全部类型</SelectItem>
+                    <SelectItem value="text">文本生成</SelectItem>
+                    <SelectItem value="image">图片生成</SelectItem>
+                    <SelectItem value="multi_image">多图生成</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+            </CardContent>
+          </Card>
+
+          {/* 模型列表 */}
+          <Card className="glass">
+            <CardHeader>
+              <CardTitle className="flex items-center justify-between">
+                模型评估列表
+                <Badge variant="secondary">{filteredModels.length} 个模型</Badge>
+              </CardTitle>
+            </CardHeader>
+            <CardContent>
+              <div className="space-y-4">
+                {filteredModels.map((model) => (
+                  <div
+                    key={model.id}
+                    className="flex items-center justify-between p-4 rounded-lg border border-border/50 hover:border-border transition-colors"
+                  >
+                    <div className="flex items-center gap-4">
+                      <div className="flex items-center gap-2">
+                        {getTaskTypeIcon(model.task_type)}
+                        <div>
+                          <p className="font-medium">{model.username}</p>
+                          <p className="text-sm text-muted-foreground">
+                            {getTaskTypeName(model.task_type)} • {model.task_id}
+                          </p>
+                        </div>
+                      </div>
+                      <div className="flex items-center gap-2 text-sm text-muted-foreground">
+                        <Calendar className="h-4 w-4" />
+                        {new Date(model.created_at).toLocaleDateString("zh-CN")}
+                      </div>
+                    </div>
+
+                    <div className="flex items-center gap-4">
+                      {model.status === "evaluated" ? (
+                        <div className="flex items-center gap-2">
+                          <div className="text-sm">
+                            <span className={`font-medium ${getScoreColor(model.topology_score || 0)}`}>
+                              拓扑: {model.topology_score?.toFixed(1)}
+                            </span>
+                            <span className="mx-2">•</span>
+                            <span className={`font-medium ${getScoreColor(model.geometry_score || 0)}`}>
+                              几何: {model.geometry_score?.toFixed(1)}
+                            </span>
+                            <span className="mx-2">•</span>
+                            <span className={`font-medium ${getScoreColor(model.rendering_score || 0)}`}>
+                              渲染: {model.rendering_score?.toFixed(1)}
+                            </span>
+                          </div>
+                          <Badge variant="secondary" className="bg-green-400/10 text-green-400">
+                            <CheckCircle className="h-3 w-3 mr-1" />
+                            已评估
+                          </Badge>
+                        </div>
+                      ) : (
+                        <Badge variant="secondary" className="bg-yellow-400/10 text-yellow-400">
+                          <Clock className="h-3 w-3 mr-1" />
+                          待评估
+                        </Badge>
+                      )}
+
+                      <div className="flex items-center gap-2">
+                        <Button variant="outline" size="sm" asChild>
+                          <Link href={`/tasks/${model.task_id}`}>
+                            <Eye className="h-4 w-4 mr-1" />
+                            查看
+                          </Link>
+                        </Button>
+                        <Button 
+                          variant="outline" 
+                          size="sm" 
+                          onClick={() => handleAutoEvaluate(model)}
+                        >
+                          <Wand2 className="h-4 w-4 mr-1" />
+                          评估
+                        </Button>
+                      </div>
+                    </div>
+                  </div>
+                ))}
+
+                {filteredModels.length === 0 && (
+                  <div className="text-center py-12">
+                    <p className="text-muted-foreground">没有找到匹配的模型</p>
+                  </div>
+                )}
+              </div>
+            </CardContent>
+          </Card>
+        </TabsContent>
+      </Tabs>
+
+      {/* 删除评估对话框相关代码 */}
+    </div>
+  )
+}

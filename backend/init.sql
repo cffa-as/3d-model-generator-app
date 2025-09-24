@@ -37,6 +37,13 @@ CREATE TABLE IF NOT EXISTS generation_tasks (
     texture_prompt TEXT,  -- 贴图生成的文本提示
     texture_image_url TEXT,  -- 贴图生成的参考图片
     ai_model VARCHAR(20),  -- AI模型版本
+
+    -- 评估相关字段
+    evaluation_status VARCHAR(20) DEFAULT 'pending',  -- pending, evaluated
+    topology_score DECIMAL(4,2) NULL,  -- 拓扑结构质量评分
+    geometry_score DECIMAL(4,2) NULL,  -- 几何准确度评分
+    rendering_score DECIMAL(4,2) NULL,  -- 渲染效率评分
+    evaluation_history JSON,  -- 评估历史记录
     
     FOREIGN KEY (user_id) REFERENCES users(id),
     FOREIGN KEY (preview_task_id) REFERENCES generation_tasks(task_id) ON DELETE CASCADE

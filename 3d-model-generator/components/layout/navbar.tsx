@@ -4,7 +4,7 @@ import { useState } from "react"
 import { Button } from "@/components/ui/button"
 import { useAuth } from "@/hooks/use-auth"
 import { AuthModal } from "@/components/auth/auth-modal"
-import { Cable as Cube, User, LogOut, BarChart3, History, LayoutDashboard } from "lucide-react"
+import { Cable as Cube, User, LogOut, BarChart3, History, LayoutDashboard, Star } from "lucide-react"
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -89,7 +89,12 @@ export function Navbar() {
                 <NavLink href="/" icon={Cube}>首页</NavLink>
                 <NavLink href="/dashboard" icon={LayoutDashboard}>工作台</NavLink>
                 <NavLink href="/tasks" icon={History}>任务历史</NavLink>
-                {isAdmin && <NavLink href="/admin" icon={BarChart3}>管理面板</NavLink>}
+                {isAdmin && (
+                  <>
+                    <NavLink href="/admin" icon={BarChart3}>管理面板</NavLink>
+                    <NavLink href="/admin/evaluation" icon={Star}>模型评估</NavLink>
+                  </>
+                )}
               </div>
             )}
 
@@ -156,14 +161,24 @@ export function Navbar() {
                             任务历史
                           </Link>
                           {isAdmin && (
-                            <Link
-                              href="/admin"
-                              className="flex items-center px-3 py-2 text-sm hover:bg-accent rounded-sm"
-                              onClick={() => setDropdownOpen(false)}
-                            >
-                        <BarChart3 className="mr-2 h-4 w-4" />
-                        管理面板
-                      </Link>
+                            <>
+                              <Link
+                                href="/admin"
+                                className="flex items-center px-3 py-2 text-sm hover:bg-accent rounded-sm"
+                                onClick={() => setDropdownOpen(false)}
+                              >
+                                <BarChart3 className="mr-2 h-4 w-4" />
+                                管理面板
+                              </Link>
+                              <Link
+                                href="/admin/evaluation"
+                                className="flex items-center px-3 py-2 text-sm hover:bg-accent rounded-sm"
+                                onClick={() => setDropdownOpen(false)}
+                              >
+                                <Star className="mr-2 h-4 w-4" />
+                                模型评估
+                              </Link>
+                            </>
                           )}
                           <button
                             onClick={handleSwitchAccount}
