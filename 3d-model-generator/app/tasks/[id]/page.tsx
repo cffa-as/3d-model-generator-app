@@ -9,7 +9,7 @@ import { Button } from "@/components/ui/button"
 import { TaskProgress } from "@/components/tasks/task-progress"
 import { ModelViewer } from "@/components/tasks/model-viewer"
 import { ApiService } from "@/lib/api"
-import { ArrowLeft, RefreshCw, Brush, Wand2, Download, Trash2 } from "lucide-react"
+import { ArrowLeft, RefreshCw, Brush, Wand2, Download, Trash2, Info } from "lucide-react"
 import Link from "next/link"
 import { cn } from "@/lib/utils"
 import { toast } from "@/components/ui/use-toast"
@@ -25,6 +25,7 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog"
+import { Alert, AlertDescription } from "@/components/ui/alert"
 
 interface TaskStatus {
   id: number
@@ -296,6 +297,15 @@ function TaskDetailPage() {
               error={task.status === "failed" ? "生成过程中遇到问题" : undefined}
             />
 
+            {task.status === "pending" && (
+              <Alert>
+                <Info className="h-4 w-4" />
+                <AlertDescription>
+                  任务正在生成中，您可以离开此页面。系统会在后台继续处理，完成后可在任务列表中查看结果。
+                </AlertDescription>
+              </Alert>
+            )}
+
             {/* 任务详细信息 */}
             <Card className="glass">
               <CardHeader>
@@ -491,13 +501,27 @@ function TaskDetailPage() {
           </div>
 
           {/* 右侧：3D模型预览 */}
-          <div>
+          <div className="space-y-4">
             <ModelViewer
               modelUrl={task.model_urls?.glb}
               model_urls={task.model_urls}
               textureUrls={task.texture_urls?.[0]}
               thumbnail={task.thumbnail_url}
             />
+            {task.model_urls?.glb && (
+              <Alert variant="default" className="bg-muted/50">
+                <Info className="h-4 w-4" />
+                <AlertDescription>
+                  在3D预览模式下：
+                  <ul className="list-disc list-inside mt-2 space-y-1 text-sm">
+                    <li>左键拖动：旋转模型</li>
+                    <li>右键拖动：平移视角</li>
+                    <li>滚轮：缩放模型</li>
+                    <li>点击全屏按钮可以获得更好的查看体验</li>
+                  </ul>
+                </AlertDescription>
+              </Alert>
+            )}
           </div>
         </div>
       </div>

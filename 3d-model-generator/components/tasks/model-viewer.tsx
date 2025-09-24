@@ -3,7 +3,7 @@
 import { useState } from "react"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
-import { Eye, Maximize2 } from "lucide-react"
+import { Eye, Maximize2, Info } from "lucide-react"
 import { cn } from "@/lib/utils"
 import dynamic from "next/dynamic"
 import { ApiService, API_BASE_URL } from "@/lib/api"
@@ -50,13 +50,19 @@ export function ModelViewer({
               3D模型预览
             </span>
             {model_urls?.glb && (
-              <Button
-                variant="outline"
-                size="sm"
-                onClick={() => setShowModelViewer(true)}
-              >
-                <Maximize2 className="h-4 w-4" />
-              </Button>
+              <div className="flex items-center gap-2">
+                <div className="text-xs text-muted-foreground flex items-center">
+                  <Info className="h-4 w-4 mr-1" />
+                  点击放大可查看3D模型
+                </div>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => setShowModelViewer(true)}
+                >
+                  <Maximize2 className="h-4 w-4" />
+                </Button>
+              </div>
             )}
           </CardTitle>
         </CardHeader>
