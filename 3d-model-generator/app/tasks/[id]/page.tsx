@@ -308,7 +308,7 @@ function TaskDetailPage() {
                 </Button>
               )}
 
-              {task.status === "completed" && task.task_type === "text" && !task.preview_task_id && (
+              {task.status === "completed" && task.task_type === "text" && !task.preview_task_id && !task.texture_urls && (
                 <Button
                   variant="default"
                   onClick={handleRefine}
@@ -329,7 +329,6 @@ function TaskDetailPage() {
               model_urls={task.model_urls}
               textureUrls={task.texture_urls?.[0]}
               thumbnail={task.thumbnail_url}
-              taskId={task.task_id}
             />
           </div>
         </div>

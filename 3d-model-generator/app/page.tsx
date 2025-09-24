@@ -49,7 +49,7 @@ function HomePage() {
   const stats = [
     { label: "已生成模型", value: "10,000+" },
     { label: "注册用户", value: "5,000+" },
-    { label: "成功率", value: "95%" },
+    { label: "成功率", value: "99%" },
     { label: "平均用时", value: "2分钟" },
   ]
 

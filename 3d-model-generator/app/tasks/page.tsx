@@ -254,8 +254,10 @@ function TasksPage() {
                             <>
                               <Type className="h-4 w-4" />
                               文本生成
-                              {task.preview_task_id ? " (精细化)" : " (预览)"}
-                              {task.texture_urls ? " (已贴图)" : ""}
+                              {task.preview_task_id && task.texture_urls ? " (精细) (已贴图)" : 
+                               task.preview_task_id ? " (精细)" : 
+                               task.texture_urls ? " (已贴图)" : 
+                               " (预览)"}
                             </>
                           )}
                           {task.task_type === "image" && (

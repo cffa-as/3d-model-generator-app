@@ -6,6 +6,14 @@ import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
 import { Download, Eye, Maximize2, Cable as Cube } from "lucide-react"
 import { cn } from "@/lib/utils"
+import dynamic from "next/dynamic"
+import { ApiService, API_BASE_URL } from "@/lib/api"
+
+// 动态导入3D预览组件
+const ThreeModelViewer = dynamic(
+  () => import("@/components/tasks/three-model-viewer").then(mod => mod.ThreeModelViewer),
+  { ssr: false }
+)
 
 interface ModelViewerProps {
   modelUrl?: string
@@ -31,8 +39,9 @@ export function ModelViewer({
   textureUrls,
   thumbnail,
 }: ModelViewerProps) {
-  const [isFullscreen, setIsFullscreen] = useState(false)
   const [activeTexture, setActiveTexture] = useState<string | null>(null)
+  const [showModelViewer, setShowModelViewer] = useState(false)
+  const [isPreloading, setIsPreloading] = useState(false)
 
   const textureTypes = [
     { key: "base_color", label: "基础色", color: "bg-blue-400/10 text-blue-400" },
@@ -50,106 +59,160 @@ export function ModelViewer({
     document.body.removeChild(link)
   }
 
+  // 预加载模型
+  const handleShowViewer = async () => {
+    if (!model_urls?.glb) return
+
+    setIsPreloading(true)
+    try {
+      // 从URL中提取任务ID
+      const url = new URL(model_urls.glb)
+      const pathParts = url.pathname.split('/')
+      const taskId = pathParts[pathParts.indexOf('tasks') + 1]
+
+      // 预加载模型
+      const preloadUrl = `${API_BASE_URL}/tasks/proxy/model/${taskId}`
+      const response = await fetch(preloadUrl, {
+        headers: ApiService.getAuthHeaders()
+      })
+
+      if (!response.ok) {
+        throw new Error(`预加载失败: ${response.status}`)
+      }
+
+      // 预加载成功后显示查看器
+      setShowModelViewer(true)
+    } catch (err) {
+      console.error("Failed to preload model:", err)
+      // 即使预加载失败也尝试显示查看器
+      setShowModelViewer(true)
+    } finally {
+      setIsPreloading(false)
+    }
+  }
+
   return (
-    <Card className="glass">
-      <CardHeader>
-        <CardTitle className="flex items-center justify-between">
-          <span className="flex items-center gap-2">
-            <Eye className="h-5 w-5" />
-            3D模型预览
-          </span>
-          {modelUrl && (
-            <Button variant="outline" size="sm" onClick={() => setIsFullscreen(!isFullscreen)}>
-              <Maximize2 className="h-4 w-4" />
-            </Button>
-          )}
-        </CardTitle>
-      </CardHeader>
-      <CardContent className="space-y-4">
-        {/* 3D模型预览区域 */}
-        <div className="aspect-square bg-gradient-to-br from-primary/10 to-blue-500/10 rounded-lg flex items-center justify-center relative overflow-hidden">
-          {modelUrl ? (
-            <div className="w-full h-full flex items-center justify-center">
-              {thumbnail ? (
-                <img
-                  src={thumbnail}
-                  alt="3D模型预览"
-                  className="max-w-full max-h-full object-contain rounded-lg"
-                />
-              ) : (
-                <div className="text-center">
-                  <Cube className="h-16 w-16 text-primary mx-auto mb-4 animate-float" />
-                  <p className="text-muted-foreground">3D模型预览</p>
-                  <p className="text-xs text-muted-foreground mt-2">点击下载按钮获取模型文件</p>
-                </div>
-              )}
-            </div>
-          ) : (
-            <div className="text-center">
-              <Cube className="h-16 w-16 text-muted-foreground mx-auto mb-4 opacity-50" />
-              <p className="text-muted-foreground">等待模型生成</p>
-            </div>
-          )}
-        </div>
-
-        {/* 下载选项 */}
-        {model_urls && Object.keys(model_urls).length > 0 && (
-          <div className="space-y-3">
-            <h4 className="font-medium text-sm">下载模型</h4>
-            <div className="flex flex-wrap gap-2">
-              {Object.entries(model_urls).map(([format, url]) => (
-                url && (
-                  <Button
-                    key={format}
-                    variant="outline"
-                    size="sm"
-                    onClick={() => downloadModel(url, `model.${format}`)}
-                    className="text-xs"
-                  >
-                    <Download className="h-3 w-3 mr-1" />
-                    {format.toUpperCase()}
-                  </Button>
-                )
-              ))}
-            </div>
-          </div>
-        )}
-
-        {/* 贴图预览 */}
-        {textureUrls && Object.keys(textureUrls).length > 0 && (
-          <div className="space-y-3">
-            <h4 className="font-medium text-sm">贴图文件</h4>
-            <div className="flex flex-wrap gap-2">
-              {textureTypes.map(({ key, label, color }) => {
-                const url = textureUrls[key as keyof typeof textureUrls]
-                if (!url) return null
-
-                return (
-                  <Badge
-                    key={key}
-                    variant="outline"
-                    className={cn("cursor-pointer", color)}
-                    onClick={() => setActiveTexture(activeTexture === key ? null : key)}
-                  >
-                    {label}
-                  </Badge>
-                )
-              })}
-            </div>
-
-            {/* 贴图预览 */}
-            {activeTexture && textureUrls[activeTexture as keyof typeof textureUrls] && (
-              <div className="mt-3">
-                <img
-                  src={textureUrls[activeTexture as keyof typeof textureUrls] || "/placeholder.svg"}
-                  alt={`${activeTexture} 贴图`}
-                  className="w-full h-32 object-cover rounded-lg border border-border/50"
-                />
+    <>
+      <Card className="glass">
+        <CardHeader>
+          <CardTitle className="flex items-center justify-between">
+            <span className="flex items-center gap-2">
+              <Eye className="h-5 w-5" />
+              3D模型预览
+            </span>
+            {model_urls?.glb && (
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={handleShowViewer}
+                disabled={isPreloading}
+              >
+                {isPreloading ? (
+                  <div className="flex items-center gap-2">
+                    <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-primary"></div>
+                    加载中...
+                  </div>
+                ) : (
+                  <Maximize2 className="h-4 w-4" />
+                )}
+              </Button>
+            )}
+          </CardTitle>
+        </CardHeader>
+        <CardContent className="space-y-4">
+          {/* 3D模型预览区域 */}
+          <div className="aspect-square bg-gradient-to-br from-primary/10 to-blue-500/10 rounded-lg flex items-center justify-center relative overflow-hidden">
+            {modelUrl ? (
+              <div className="w-full h-full flex items-center justify-center">
+                {thumbnail ? (
+                  <img
+                    src={thumbnail}
+                    alt="3D模型预览"
+                    className="max-w-full max-h-full object-contain rounded-lg"
+                  />
+                ) : (
+                  <div className="text-center">
+                    <Cube className="h-16 w-16 text-primary mx-auto mb-4 animate-float" />
+                    <p className="text-muted-foreground">3D模型预览</p>
+                    <p className="text-xs text-muted-foreground mt-2">点击下载按钮获取模型文件</p>
+                  </div>
+                )}
+              </div>
+            ) : (
+              <div className="text-center">
+                <Cube className="h-16 w-16 text-muted-foreground mx-auto mb-4 opacity-50" />
+                <p className="text-muted-foreground">等待模型生成</p>
               </div>
             )}
           </div>
-        )}
-      </CardContent>
-    </Card>
+
+          {/* 下载选项 */}
+          {model_urls && Object.keys(model_urls).length > 0 && (
+            <div className="space-y-3">
+              <h4 className="font-medium text-sm">下载模型</h4>
+              <div className="flex flex-wrap gap-2">
+                {Object.entries(model_urls).map(([format, url]) => (
+                  url && (
+                    <Button
+                      key={format}
+                      variant="outline"
+                      size="sm"
+                      onClick={() => downloadModel(url, `model.${format}`)}
+                      className="text-xs"
+                    >
+                      <Download className="h-3 w-3 mr-1" />
+                      {format.toUpperCase()}
+                    </Button>
+                  )
+                ))}
+              </div>
+            </div>
+          )}
+
+          {/* 贴图预览 */}
+          {textureUrls && Object.keys(textureUrls).length > 0 && (
+            <div className="space-y-3">
+              <h4 className="font-medium text-sm">贴图文件</h4>
+              <div className="flex flex-wrap gap-2">
+                {textureTypes.map(({ key, label, color }) => {
+                  const url = textureUrls[key as keyof typeof textureUrls]
+                  if (!url) return null
+
+                  return (
+                    <Badge
+                      key={key}
+                      variant="outline"
+                      className={cn("cursor-pointer", color)}
+                      onClick={() => setActiveTexture(activeTexture === key ? null : key)}
+                    >
+                      {label}
+                    </Badge>
+                  )
+                })}
+              </div>
+
+              {/* 贴图预览 */}
+              {activeTexture && textureUrls[activeTexture as keyof typeof textureUrls] && (
+                <div className="mt-3">
+                  <img
+                    src={textureUrls[activeTexture as keyof typeof textureUrls] || "/placeholder.svg"}
+                    alt={`${activeTexture} 贴图`}
+                    className="w-full h-32 object-cover rounded-lg border border-border/50"
+                  />
+                </div>
+              )}
+            </div>
+          )}
+        </CardContent>
+      </Card>
+
+      {/* 3D模型查看器 */}
+      {showModelViewer && model_urls?.glb && (
+        <ThreeModelViewer
+          modelUrl={model_urls.glb}
+          onClose={() => setShowModelViewer(false)}
+        />
+      )}
+    </>
   )
 }

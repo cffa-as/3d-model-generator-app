@@ -8,12 +8,20 @@ from services.auth import get_current_user
 from services.meshy_client import meshy_client
 from models.task import TaskCreate
 import httpx
+import os
+import hashlib
+from pathlib import Path
+from starlette.responses import FileResponse
 
 # 配置日志
 logger = logging.getLogger(__name__)
 
 router = APIRouter()
 db = Database()
+
+# 创建缓存目录
+CACHE_DIR = Path("cache/models")
+CACHE_DIR.mkdir(parents=True, exist_ok=True)
 
 @router.post("/generate")
 async def create_generation_task(task: TaskCreate, current_user: dict = Depends(get_current_user)) -> Dict[str, Any]:
@@ -351,3 +359,56 @@ async def upload_images(file: UploadFile = File(...), current_user: dict = Depen
     except Exception as e:
         logger.error("上传图片失败: %s", str(e))
         raise HTTPException(status_code=500, detail=str(e)) 
+
+@router.get("/proxy/model/{task_id}")
+async def proxy_model_file(task_id: str, current_user: dict = Depends(get_current_user)):
+    """代理加载3D模型文件"""
+    try:
+        # 从数据库获取任务
+        query = """
+            SELECT model_urls
+            FROM generation_tasks
+            WHERE task_id = %s AND user_id = %s
+        """
+        task = await db.fetch_one(query, (task_id, current_user["user_id"]))
+
+        if not task or not task["model_urls"]:
+            raise HTTPException(status_code=404, detail="模型文件不存在")
+
+        model_urls = json.loads(task["model_urls"])
+        glb_url = model_urls.get("glb")
+
+        if not glb_url:
+            raise HTTPException(status_code=404, detail="GLB文件不存在")
+
+        # 生成缓存文件路径
+        cache_key = hashlib.md5(glb_url.encode()).hexdigest()
+        cache_file = CACHE_DIR / f"{cache_key}.glb"
+
+        # 如果缓存存在，直接返回
+        if cache_file.exists():
+            return FileResponse(
+                cache_file,
+                media_type="model/gltf-binary",
+                filename=f"{task_id}.glb"
+            )
+
+        # 下载文件
+        async with httpx.AsyncClient() as client:
+            response = await client.get(glb_url)
+            if response.status_code != 200:
+                raise HTTPException(status_code=response.status_code, detail="获取模型文件失败")
+
+            # 保存到缓存
+            cache_file.write_bytes(response.content)
+
+            # 返回文件
+            return FileResponse(
+                cache_file,
+                media_type="model/gltf-binary",
+                filename=f"{task_id}.glb"
+            )
+
+    except Exception as e:
+        logger.error("代理模型文件失败: %s", str(e))
+        raise HTTPException(status_code=500, detail=str(e))
