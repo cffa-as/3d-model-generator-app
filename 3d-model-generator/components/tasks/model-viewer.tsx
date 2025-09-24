@@ -3,8 +3,7 @@
 import { useState } from "react"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
-import { Badge } from "@/components/ui/badge"
-import { Download, Eye, Maximize2, Cable as Cube } from "lucide-react"
+import { Eye, Maximize2 } from "lucide-react"
 import { cn } from "@/lib/utils"
 import dynamic from "next/dynamic"
 import { ApiService, API_BASE_URL } from "@/lib/api"
@@ -39,57 +38,7 @@ export function ModelViewer({
   textureUrls,
   thumbnail,
 }: ModelViewerProps) {
-  const [activeTexture, setActiveTexture] = useState<string | null>(null)
   const [showModelViewer, setShowModelViewer] = useState(false)
-  const [isPreloading, setIsPreloading] = useState(false)
-
-  const textureTypes = [
-    { key: "base_color", label: "基础色", color: "bg-blue-400/10 text-blue-400" },
-    { key: "metallic", label: "金属度", color: "bg-gray-400/10 text-gray-400" },
-    { key: "normal", label: "法线", color: "bg-purple-400/10 text-purple-400" },
-    { key: "roughness", label: "粗糙度", color: "bg-orange-400/10 text-orange-400" },
-  ]
-
-  const downloadModel = (url: string, filename: string) => {
-    const link = document.createElement("a")
-    link.href = url
-    link.download = filename
-    document.body.appendChild(link)
-    link.click()
-    document.body.removeChild(link)
-  }
-
-  // 预加载模型
-  const handleShowViewer = async () => {
-    if (!model_urls?.glb) return
-
-    setIsPreloading(true)
-    try {
-      // 从URL中提取任务ID
-      const url = new URL(model_urls.glb)
-      const pathParts = url.pathname.split('/')
-      const taskId = pathParts[pathParts.indexOf('tasks') + 1]
-
-      // 预加载模型
-      const preloadUrl = `${API_BASE_URL}/tasks/proxy/model/${taskId}`
-      const response = await fetch(preloadUrl, {
-        headers: ApiService.getAuthHeaders()
-      })
-
-      if (!response.ok) {
-        throw new Error(`预加载失败: ${response.status}`)
-      }
-
-      // 预加载成功后显示查看器
-      setShowModelViewer(true)
-    } catch (err) {
-      console.error("Failed to preload model:", err)
-      // 即使预加载失败也尝试显示查看器
-      setShowModelViewer(true)
-    } finally {
-      setIsPreloading(false)
-    }
-  }
 
   return (
     <>
@@ -104,22 +53,14 @@ export function ModelViewer({
               <Button
                 variant="outline"
                 size="sm"
-                onClick={handleShowViewer}
-                disabled={isPreloading}
+                onClick={() => setShowModelViewer(true)}
               >
-                {isPreloading ? (
-                  <div className="flex items-center gap-2">
-                    <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-primary"></div>
-                    加载中...
-                  </div>
-                ) : (
-                  <Maximize2 className="h-4 w-4" />
-                )}
+                <Maximize2 className="h-4 w-4" />
               </Button>
             )}
           </CardTitle>
         </CardHeader>
-        <CardContent className="space-y-4">
+        <CardContent>
           {/* 3D模型预览区域 */}
           <div className="aspect-square bg-gradient-to-br from-primary/10 to-blue-500/10 rounded-lg flex items-center justify-center relative overflow-hidden">
             {modelUrl ? (
@@ -132,77 +73,18 @@ export function ModelViewer({
                   />
                 ) : (
                   <div className="text-center">
-                    <Cube className="h-16 w-16 text-primary mx-auto mb-4 animate-float" />
+                    <div className="h-16 w-16 text-primary mx-auto mb-4 animate-float">🎮</div>
                     <p className="text-muted-foreground">3D模型预览</p>
-                    <p className="text-xs text-muted-foreground mt-2">点击下载按钮获取模型文件</p>
                   </div>
                 )}
               </div>
             ) : (
               <div className="text-center">
-                <Cube className="h-16 w-16 text-muted-foreground mx-auto mb-4 opacity-50" />
+                <div className="h-16 w-16 text-muted-foreground mx-auto mb-4 opacity-50">🎮</div>
                 <p className="text-muted-foreground">等待模型生成</p>
               </div>
             )}
           </div>
-
-          {/* 下载选项 */}
-          {model_urls && Object.keys(model_urls).length > 0 && (
-            <div className="space-y-3">
-              <h4 className="font-medium text-sm">下载模型</h4>
-              <div className="flex flex-wrap gap-2">
-                {Object.entries(model_urls).map(([format, url]) => (
-                  url && (
-                    <Button
-                      key={format}
-                      variant="outline"
-                      size="sm"
-                      onClick={() => downloadModel(url, `model.${format}`)}
-                      className="text-xs"
-                    >
-                      <Download className="h-3 w-3 mr-1" />
-                      {format.toUpperCase()}
-                    </Button>
-                  )
-                ))}
-              </div>
-            </div>
-          )}
-
-          {/* 贴图预览 */}
-          {textureUrls && Object.keys(textureUrls).length > 0 && (
-            <div className="space-y-3">
-              <h4 className="font-medium text-sm">贴图文件</h4>
-              <div className="flex flex-wrap gap-2">
-                {textureTypes.map(({ key, label, color }) => {
-                  const url = textureUrls[key as keyof typeof textureUrls]
-                  if (!url) return null
-
-                  return (
-                    <Badge
-                      key={key}
-                      variant="outline"
-                      className={cn("cursor-pointer", color)}
-                      onClick={() => setActiveTexture(activeTexture === key ? null : key)}
-                    >
-                      {label}
-                    </Badge>
-                  )
-                })}
-              </div>
-
-              {/* 贴图预览 */}
-              {activeTexture && textureUrls[activeTexture as keyof typeof textureUrls] && (
-                <div className="mt-3">
-                  <img
-                    src={textureUrls[activeTexture as keyof typeof textureUrls] || "/placeholder.svg"}
-                    alt={`${activeTexture} 贴图`}
-                    className="w-full h-32 object-cover rounded-lg border border-border/50"
-                  />
-                </div>
-              )}
-            </div>
-          )}
         </CardContent>
       </Card>
 

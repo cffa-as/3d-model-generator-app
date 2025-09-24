@@ -9,11 +9,12 @@ import { Button } from "@/components/ui/button"
 import { TaskProgress } from "@/components/tasks/task-progress"
 import { ModelViewer } from "@/components/tasks/model-viewer"
 import { ApiService } from "@/lib/api"
-import { ArrowLeft, RefreshCw, Brush, Wand2 } from "lucide-react"
+import { ArrowLeft, RefreshCw, Brush, Wand2, Download } from "lucide-react"
 import Link from "next/link"
 import { cn } from "@/lib/utils"
 import { toast } from "@/components/ui/use-toast"
 import { TaskService } from "@/lib/tasks"
+import { Badge } from "@/components/ui/badge"
 
 interface TaskStatus {
   id: number
@@ -52,6 +53,7 @@ function TaskDetailPage() {
   const [isPolling, setIsPolling] = useState(false)
   const [isGeneratingTexture, setIsGeneratingTexture] = useState(false)
   const [isRefining, setIsRefining] = useState(false)
+  const [activeTexture, setActiveTexture] = useState<string | null>(null)
 
   const loadTask = useCallback(async (showLoading = true) => {
     try {
@@ -112,6 +114,15 @@ function TaskDetailPage() {
       setIsRefining(false)
     }
   }
+
+  const downloadModel = (url: string, filename: string) => {
+    const link = document.createElement('a');
+    link.href = url;
+    link.download = filename;
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+  };
 
   // 初始加载
   useEffect(() => {
@@ -214,6 +225,13 @@ function TaskDetailPage() {
     )
   }
 
+  const textureTypes = [
+    { key: "base_color", label: "Base Color", color: "bg-blue-100 text-blue-800" },
+    { key: "metallic", label: "Metallic", color: "bg-purple-100 text-purple-800" },
+    { key: "normal", label: "Normal", color: "bg-green-100 text-green-800" },
+    { key: "roughness", label: "Roughness", color: "bg-red-100 text-red-800" },
+  ];
+
   return (
     <div className="min-h-screen">
       <Navbar />
@@ -284,6 +302,72 @@ function TaskDetailPage() {
               </CardContent>
             </Card>
 
+            {/* 下载选项 */}
+            {task.model_urls && Object.keys(task.model_urls).length > 0 && (
+              <Card className="glass">
+                <CardHeader>
+                  <CardTitle>下载模型</CardTitle>
+                </CardHeader>
+                <CardContent>
+                  <div className="flex flex-wrap gap-2">
+                    {Object.entries(task.model_urls).map(([format, url]) => (
+                      url && (
+                        <Button
+                          key={format}
+                          variant="outline"
+                          size="sm"
+                          onClick={() => downloadModel(url, `model.${format}`)}
+                          className="text-xs"
+                        >
+                          <Download className="h-3 w-3 mr-1" />
+                          {format.toUpperCase()}
+                        </Button>
+                      )
+                    ))}
+                  </div>
+                </CardContent>
+              </Card>
+            )}
+
+            {/* 贴图文件 */}
+            {task.texture_urls && task.texture_urls.length > 0 && (
+              <Card className="glass">
+                <CardHeader>
+                  <CardTitle>贴图文件</CardTitle>
+                </CardHeader>
+                <CardContent>
+                  <div className="flex flex-wrap gap-2">
+                    {textureTypes.map(({ key, label, color }) => {
+                      const url = task.texture_urls?.[0]?.[key as keyof typeof task.texture_urls[0]]
+                      if (!url) return null
+
+                      return (
+                        <Badge
+                          key={key}
+                          variant="outline"
+                          className={cn("cursor-pointer", color)}
+                          onClick={() => setActiveTexture(activeTexture === key ? null : key)}
+                        >
+                          {label}
+                        </Badge>
+                      )
+                    })}
+                  </div>
+
+                  {/* 贴图预览 */}
+                  {activeTexture && task.texture_urls?.[0]?.[activeTexture as keyof typeof task.texture_urls[0]] && (
+                    <div className="mt-3">
+                      <img
+                        src={task.texture_urls[0][activeTexture as keyof typeof task.texture_urls[0]] || "/placeholder.svg"}
+                        alt={`${activeTexture} 贴图`}
+                        className="w-full h-32 object-cover rounded-lg border border-border/50"
+                      />
+                    </div>
+                  )}
+                </CardContent>
+              </Card>
+            )}
+
             {/* 操作按钮 */}
             <div className="flex flex-col gap-2">
               <Button
@@ -317,7 +401,7 @@ function TaskDetailPage() {
                 >
                   <Wand2 className="h-4 w-4 mr-2" />
                   {isRefining ? "精细化生成中..." : "精细化生成"}
-            </Button>
+                </Button>
               )}
             </div>
           </div>
