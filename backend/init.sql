@@ -54,6 +54,44 @@ CREATE INDEX idx_task_id ON generation_tasks(task_id);
 CREATE INDEX idx_user_id ON generation_tasks(user_id);
 CREATE INDEX idx_preview_task_id ON generation_tasks(preview_task_id);
 
+-- 创建评估详情表
+CREATE TABLE IF NOT EXISTS model_evaluations (
+    id INT AUTO_INCREMENT PRIMARY KEY,
+    task_id VARCHAR(100) NOT NULL,
+    evaluation_date TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    
+    -- 基础信息
+    vertex_count INT,
+    face_count INT,
+    surface_area DECIMAL(10,2),
+    
+    -- 法线分布
+    normal_consistency DECIMAL(10,3),
+    normal_score DECIMAL(4,2),
+    
+    -- 面片质量
+    aspect_ratio DECIMAL(10,2),
+    aspect_score DECIMAL(4,2),
+    
+    -- 完整性
+    is_watertight BOOLEAN,
+    is_volume BOOLEAN,
+    boundary_edges_ratio DECIMAL(10,3),
+    completeness_score DECIMAL(4,2),
+    
+    -- 细节保留
+    vertex_density DECIMAL(10,3),
+    detail_score DECIMAL(4,2),
+    
+    -- 最终得分
+    final_score DECIMAL(4,2),
+    
+    -- 评估日志
+    evaluation_log TEXT,
+    
+    FOREIGN KEY (task_id) REFERENCES generation_tasks(task_id) ON DELETE CASCADE
+);
+
 -- 插入默认管理员用户
 INSERT INTO users (username, password, email, is_admin)
 VALUES ('admin', 'admin123', 'admin@example.com', TRUE); 

@@ -68,6 +68,35 @@ interface EvaluationStats {
   anomaly_count: number
 }
 
+interface EvaluationDetails {
+  basic_info: {
+    vertex_count: number
+    face_count: number
+    surface_area: number
+    evaluation_date: string
+  }
+  normal_analysis: {
+    consistency: number
+    score: number
+  }
+  mesh_quality: {
+    aspect_ratio: number
+    score: number
+  }
+  completeness: {
+    is_watertight: boolean
+    is_volume: boolean
+    boundary_ratio: number
+    score: number
+  }
+  detail_preservation: {
+    vertex_density: number
+    score: number
+  }
+  final_score: number
+  evaluation_log: string
+}
+
 // 添加自动评估函数
 const autoEvaluateModel = async (modelUrl: string) => {
   try {
@@ -125,6 +154,8 @@ export function ModelEvaluation() {
   const [loading, setLoading] = useState(true)
   const [selectedModel, setSelectedModel] = useState<ModelEvaluation | null>(null)
   const [evaluationDialog, setEvaluationDialog] = useState(false)
+  const [evaluationDetails, setEvaluationDetails] = useState<EvaluationDetails | null>(null)
+  const [showEvaluationDialog, setShowEvaluationDialog] = useState(false)
 
   // 筛选状态
   const [searchTerm, setSearchTerm] = useState("")
@@ -239,36 +270,73 @@ export function ModelEvaluation() {
   const handleAutoEvaluate = async (model: ModelEvaluation) => {
     try {
       setSelectedModel(model)
-      const modelUrl = `${API_BASE_URL}/tasks/proxy/model/${model.task_id}`
       
-      const results = await autoEvaluateModel(modelUrl)
+      // 调用评估接口
+      const response = await fetch(`${API_BASE_URL}/admin/tasks/${model.task_id}/evaluate`, {
+        method: 'POST',
+        headers: ApiService.getAuthHeaders()
+      })
+
+      if (!response.ok) {
+        throw new Error('评估失败')
+      }
+
+      const results = await response.json()
       
-      // 直接保存评估结果，不显示对话框
+      // 更新模型数据
       const updatedModel = {
         ...model,
         status: "evaluated" as const,
-        topology_score: results.topology_score,
-        geometry_score: results.geometry_score,
-        rendering_score: results.rendering_score,
+        topology_score: Number(results.topology_score),
+        geometry_score: Number(results.geometry_score),
+        rendering_score: Number(results.rendering_score),
         evaluation_history: [
           ...(model.evaluation_history || []),
-          {
-            date: new Date().toISOString(),
-            evaluator: "系统自动评估",
-            scores: {
-              topology: results.topology_score,
-              geometry: results.geometry_score,
-              rendering: results.rendering_score,
-            },
-            notes: "自动评估结果\n" +
-              `拓扑结构：检测完整性良好\n` +
-              `几何准确度：形状匹配度高\n` +
-              `渲染效率：性能表现优秀`,
-          },
+          results.evaluation_history
         ],
       }
 
-      setModels((prev) => prev.map((m) => (m.id === model.id ? updatedModel : m)))
+      // 更新模型列表
+      setModels((prev) => {
+        const newModels = prev.map((m) => (m.id === model.id ? updatedModel : m))
+        const newStats = calculateStats(newModels)
+        setStats(newStats)
+        return newModels
+      })
+
+      // 转换评估详情的格式
+      const details: EvaluationDetails = {
+        basic_info: {
+          vertex_count: results.details.vertex_count,
+          face_count: results.details.face_count,
+          surface_area: results.details.surface_area,
+          evaluation_date: new Date().toISOString()
+        },
+        normal_analysis: {
+          consistency: results.details.normal_consistency,
+          score: results.topology_score
+        },
+        mesh_quality: {
+          aspect_ratio: results.details.aspect_ratio,
+          score: results.geometry_score
+        },
+        completeness: {
+          is_watertight: results.details.is_watertight,
+          is_volume: results.details.is_volume,
+          boundary_ratio: results.details.boundary_ratio,
+          score: results.details.completeness_score || 0
+        },
+        detail_preservation: {
+          vertex_density: results.details.vertex_density,
+          score: results.rendering_score
+        },
+        final_score: results.details.final_score,
+        evaluation_log: results.details.evaluation_log || ""
+      }
+
+      setEvaluationDetails(details)
+      setShowEvaluationDialog(true)
+
       toast({
         title: "评估完成",
         description: "模型评估已完成",
@@ -277,6 +345,44 @@ export function ModelEvaluation() {
       toast({
         title: "评估失败",
         description: "自动评估失败，请稍后重试",
+        variant: "destructive",
+      })
+    }
+  }
+
+  const handleExport = async () => {
+    try {
+      const response = await fetch(`${API_BASE_URL}/admin/tasks/export`, {
+        headers: ApiService.getAuthHeaders()
+      })
+
+      if (!response.ok) {
+        throw new Error('导出失败')
+      }
+
+      // 获取文件名
+      const contentDisposition = response.headers.get('content-disposition')
+      const filename = contentDisposition?.split('filename=')[1] || 'evaluation_report.csv'
+
+      // 下载文件
+      const blob = await response.blob()
+      const url = window.URL.createObjectURL(blob)
+      const a = document.createElement('a')
+      a.href = url
+      a.download = filename
+      document.body.appendChild(a)
+      a.click()
+      window.URL.revokeObjectURL(url)
+      document.body.removeChild(a)
+
+      toast({
+        title: "导出成功",
+        description: "评估报告已下载",
+      })
+    } catch (error) {
+      toast({
+        title: "导出失败",
+        description: "导出评估报告失败，请稍后重试",
         variant: "destructive",
       })
     }
@@ -309,8 +415,8 @@ export function ModelEvaluation() {
   }
 
   const getScoreColor = (score: number) => {
-    if (score >= 8) return "text-green-400"
-    if (score >= 6) return "text-yellow-400"
+    if (score >= 7) return "text-green-400"
+    if (score >= 3.5) return "text-yellow-400"
     return "text-red-400"
   }
 
@@ -332,7 +438,7 @@ export function ModelEvaluation() {
     <div className="space-y-6">
       <div className="flex items-center justify-between">
         <h2 className="text-2xl font-bold">模型评估系统</h2>
-        <Button variant="outline" size="sm">
+        <Button variant="outline" size="sm" onClick={handleExport}>
           <Download className="h-4 w-4 mr-2" />
           导出报告
         </Button>
@@ -627,8 +733,8 @@ export function ModelEvaluation() {
                       <div className="flex items-center gap-2">
                         <Button variant="outline" size="sm" asChild>
                           <Link href={`/tasks/${model.task_id}`}>
-                            <Eye className="h-4 w-4 mr-1" />
-                            查看
+                          <Eye className="h-4 w-4 mr-1" />
+                          查看
                           </Link>
                         </Button>
                         <Button 
@@ -655,7 +761,92 @@ export function ModelEvaluation() {
         </TabsContent>
       </Tabs>
 
-      {/* 删除评估对话框相关代码 */}
+      {/* 评估详情对话框 */}
+      <Dialog open={showEvaluationDialog} onOpenChange={setShowEvaluationDialog}>
+        <DialogContent className="max-w-2xl">
+          <DialogHeader>
+            <DialogTitle>模型评估详情</DialogTitle>
+          </DialogHeader>
+
+          {evaluationDetails && (
+            <div className="space-y-6">
+              {/* 基本信息 */}
+              <div className="space-y-2">
+                <h3 className="text-lg font-semibold">基本信息</h3>
+                <div className="grid grid-cols-2 gap-4 text-sm">
+                  <div>
+                    <span className="text-muted-foreground">顶点数：</span>
+                    <span className="font-medium">{evaluationDetails.basic_info.vertex_count}</span>
+                  </div>
+                  <div>
+                    <span className="text-muted-foreground">面片数：</span>
+                    <span className="font-medium">{evaluationDetails.basic_info.face_count}</span>
+                  </div>
+                  <div>
+                    <span className="text-muted-foreground">表面积：</span>
+                    <span className="font-medium">{evaluationDetails.basic_info.surface_area.toFixed(2)}</span>
+                  </div>
+                  <div>
+                    <span className="text-muted-foreground">评估时间：</span>
+                    <span className="font-medium">
+                      {new Date(evaluationDetails.basic_info.evaluation_date).toLocaleString("zh-CN")}
+                    </span>
+                  </div>
+                </div>
+              </div>
+
+              {/* 评分详情 */}
+              <div className="space-y-4">
+                <h3 className="text-lg font-semibold">评分详情</h3>
+                
+                {/* 法线分析 */}
+                <div className="space-y-2">
+                  <h4 className="font-medium">法线分布 ({evaluationDetails.normal_analysis.score.toFixed(2)}分)</h4>
+                  <div className="text-sm">
+                    <p>法线一致性：{evaluationDetails.normal_analysis.consistency.toFixed(3)}</p>
+                  </div>
+                </div>
+
+                {/* 面片质量 */}
+                <div className="space-y-2">
+                  <h4 className="font-medium">面片质量 ({evaluationDetails.mesh_quality.score.toFixed(2)}分)</h4>
+                  <div className="text-sm">
+                    <p>边长比：{evaluationDetails.mesh_quality.aspect_ratio.toFixed(2)}</p>
+                  </div>
+                </div>
+
+                {/* 完整性 */}
+                <div className="space-y-2">
+                  <h4 className="font-medium">完整性 ({evaluationDetails.completeness.score.toFixed(2)}分)</h4>
+                  <div className="text-sm space-y-1">
+                    <p>是否流形：{evaluationDetails.completeness.is_watertight ? "是" : "否"}</p>
+                    <p>是否有体积：{evaluationDetails.completeness.is_volume ? "是" : "否"}</p>
+                    <p>边界边比例：{(evaluationDetails.completeness.boundary_ratio * 100).toFixed(1)}%</p>
+                  </div>
+                </div>
+
+                {/* 细节保留 */}
+                <div className="space-y-2">
+                  <h4 className="font-medium">细节保留 ({evaluationDetails.detail_preservation.score.toFixed(2)}分)</h4>
+                  <div className="text-sm">
+                    <p>顶点密度：{evaluationDetails.detail_preservation.vertex_density.toFixed(2)}</p>
+                  </div>
+                </div>
+
+                {/* 最终得分 */}
+                <div className="mt-4 pt-4 border-t">
+                  <div className="flex items-center justify-between">
+                    <span className="text-lg font-semibold">最终得分</span>
+                    <span className="text-2xl font-bold text-primary">
+                      {evaluationDetails.final_score.toFixed(2)}
+                    </span>
+                  </div>
+                </div>
+              </div>
+            </div>
+          )}
+        </DialogContent>
+      </Dialog>
     </div>
   )
 }
