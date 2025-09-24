@@ -10,10 +10,28 @@ import { Badge } from "@/components/ui/badge"
 import { Input } from "@/components/ui/input"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { TaskService } from "@/lib/tasks"
-import { Clock, CheckCircle, AlertCircle, Search, Filter, Type, Eye, ImageIcon, Images } from "lucide-react"
+import { Clock, CheckCircle, AlertCircle, Search, Filter, Type, Eye, ImageIcon, Images, Trash2, Download } from "lucide-react"
 import { cn } from "@/lib/utils"
 import Link from "next/link"
 import { useToast } from "@/hooks/use-toast"
+import { ApiService } from "@/lib/api"
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog"
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogTrigger,
+} from "@/components/ui/dialog"
 
 interface TaskStatus {
   id: number
@@ -50,6 +68,10 @@ function TasksPage() {
   const [searchTerm, setSearchTerm] = useState("")
   const [statusFilter, setStatusFilter] = useState<string>("all")
   const { toast } = useToast()
+  const [deletingTaskId, setDeletingTaskId] = useState<string | null>(null)
+  const [showDeleteDialog, setShowDeleteDialog] = useState(false)
+  const [taskToDelete, setTaskToDelete] = useState<TaskStatus | null>(null)
+  const [showDownloadDialog, setShowDownloadDialog] = useState<string | null>(null)
 
   useEffect(() => {
     if (!isLoading && !user) {
@@ -146,6 +168,52 @@ function TasksPage() {
   const formatDate = (dateString: string) => {
     return new Date(dateString).toLocaleString("zh-CN")
   }
+
+  const handleDelete = async () => {
+    if (!taskToDelete) return
+    
+    setDeletingTaskId(taskToDelete.task_id)
+    try {
+      await ApiService.deleteTask(taskToDelete.task_id)
+      toast({
+        title: "删除成功",
+        description: "任务已成功删除",
+      })
+      loadTasks()
+    } catch (error) {
+      toast({
+        title: "删除失败",
+        description: error instanceof Error ? error.message : "删除任务时发生错误",
+        variant: "destructive",
+      })
+    } finally {
+      setDeletingTaskId(null)
+      setShowDeleteDialog(false)
+      setTaskToDelete(null)
+    }
+  }
+
+  const confirmDelete = (task: TaskStatus) => {
+    setTaskToDelete(task)
+    setShowDeleteDialog(true)
+  }
+
+  const downloadModel = (url: string, filename: string) => {
+    const link = document.createElement("a")
+    link.href = url
+    link.download = filename
+    document.body.appendChild(link)
+    link.click()
+    document.body.removeChild(link)
+  }
+
+  // 贴图类型定义
+  const textureTypes = [
+    { key: "base_color", label: "基础色", color: "bg-blue-400/10 text-blue-400" },
+    { key: "metallic", label: "金属度", color: "bg-gray-400/10 text-gray-400" },
+    { key: "normal", label: "法线", color: "bg-purple-400/10 text-purple-400" },
+    { key: "roughness", label: "粗糙度", color: "bg-orange-400/10 text-orange-400" },
+  ]
 
   if (isLoading) {
     return (
@@ -302,11 +370,96 @@ function TasksPage() {
                             查看详情
                           </Link>
                         </Button>
-                        {task.status === "completed" && task.model_urls?.glb && (
-                          <Button variant="outline" size="sm">
-                            下载模型
-                          </Button>
+                        {task.status === "completed" && (task.model_urls || task.texture_urls) && (
+                          <Dialog open={showDownloadDialog === task.task_id} onOpenChange={(open) => setShowDownloadDialog(open ? task.task_id : null)}>
+                            <DialogTrigger asChild>
+                              <Button variant="outline" size="sm" className="text-blue-500 hover:text-blue-600">
+                                <Download className="h-4 w-4 mr-1" />
+                                下载文件
+                              </Button>
+                            </DialogTrigger>
+                            <DialogContent className="sm:max-w-[425px]">
+                              <DialogHeader>
+                                <DialogTitle>下载文件</DialogTitle>
+                              </DialogHeader>
+                              <div className="grid gap-4 py-4">
+                                {task.model_urls && Object.keys(task.model_urls).length > 0 && (
+                                  <div className="space-y-2">
+                                    <h4 className="font-medium text-sm">模型文件</h4>
+                                    <div className="flex flex-wrap gap-2">
+                                      {Object.entries(task.model_urls).map(([format, url]) => (
+                                        url && (
+                                          <Button
+                                            key={format}
+                                            variant="outline"
+                                            size="sm"
+                                            onClick={() => {
+                                              downloadModel(url, `model.${format}`)
+                                              setShowDownloadDialog(null)
+                                            }}
+                                            className="text-xs"
+                                          >
+                                            <Download className="h-3 w-3 mr-1" />
+                                            {format.toUpperCase()}
+                                          </Button>
+                                        )
+                                      ))}
+                                    </div>
+                                  </div>
+                                )}
+                                {task.texture_urls && task.texture_urls.length > 0 && (
+                                  <div className="space-y-2">
+                                    <h4 className="font-medium text-sm">贴图文件</h4>
+                                    <div className="flex flex-wrap gap-2">
+                                      {textureTypes.map(({ key, label }) => {
+                                        const url = task.texture_urls?.[0]?.[key as keyof typeof task.texture_urls[0]]
+                                        if (!url) return null
+
+                                        return (
+                                          <Button
+                                            key={key}
+                                            variant="outline"
+                                            size="sm"
+                                            onClick={() => {
+                                              downloadModel(url, `texture_${key}.jpg`)
+                                              setShowDownloadDialog(null)
+                                            }}
+                                            className="text-xs"
+                                          >
+                                            <Download className="h-3 w-3 mr-1" />
+                                            {label}
+                                          </Button>
+                                        )
+                                      })}
+                                    </div>
+                                  </div>
+                                )}
+                              </div>
+                            </DialogContent>
+                          </Dialog>
                         )}
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          onClick={() => confirmDelete(task)}
+                          disabled={deletingTaskId === task.task_id}
+                          className={cn(
+                            "text-red-500 hover:text-red-600 cursor-pointer",
+                            deletingTaskId === task.task_id && "opacity-50 cursor-not-allowed"
+                          )}
+                        >
+                          {deletingTaskId === task.task_id ? (
+                            <>
+                              <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-red-500 mr-1" />
+                              删除中...
+                            </>
+                          ) : (
+                            <>
+                              <Trash2 className="h-4 w-4 mr-1" />
+                              删除
+                            </>
+                          )}
+                        </Button>
                       </div>
                     </div>
 
@@ -334,6 +487,38 @@ function TasksPage() {
           </div>
         )}
       </div>
+
+      {/* 删除确认对话框 */}
+      <AlertDialog open={showDeleteDialog} onOpenChange={setShowDeleteDialog}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>确认删除任务？</AlertDialogTitle>
+            <AlertDialogDescription>
+              {taskToDelete?.preview_task_id ? (
+                "此操作将删除此精细化任务。"
+              ) : taskToDelete?.task_type === "text" ? (
+                "此操作将删除此预览任务及其相关的精细化任务（如果有）。"
+              ) : (
+                "此操作将永久删除此任务。"
+              )}
+              此操作无法撤销。
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel disabled={!!deletingTaskId}>取消</AlertDialogCancel>
+            <AlertDialogAction
+              onClick={handleDelete}
+              disabled={!!deletingTaskId}
+              className={cn(
+                "bg-destructive text-destructive-foreground hover:bg-destructive/90",
+                deletingTaskId && "opacity-50 cursor-not-allowed"
+              )}
+            >
+              {deletingTaskId ? "删除中..." : "确认删除"}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   )
 }

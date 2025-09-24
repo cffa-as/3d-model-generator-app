@@ -197,6 +197,60 @@ class MeshyClient:
             logger.error("Failed to create multi-image-to-3D task: %s", str(e))
             raise
 
+    async def delete_text_task(self, task_id: str):
+        """删除文本转3D任务"""
+        url = f"{self.base_url}/openapi/v2/text-to-3d/{task_id}"
+        try:
+            async with httpx.AsyncClient() as client:
+                response = await client.delete(url, headers=self.headers)
+                if response.status_code != 200:
+                    error_text = response.text
+                    try:
+                        error_json = response.json()
+                        error_text = error_json.get("message", error_text)
+                    except:
+                        pass
+                    raise Exception(f"删除任务失败: {error_text}")
+        except Exception as e:
+            logger.error(f"删除文本转3D任务失败: {str(e)}")
+            raise
+
+    async def delete_image_task(self, task_id: str):
+        """删除图片转3D任务"""
+        url = f"{self.base_url}/openapi/v1/image-to-3d/{task_id}"
+        try:
+            async with httpx.AsyncClient() as client:
+                response = await client.delete(url, headers=self.headers)
+                if response.status_code != 200:
+                    error_text = response.text
+                    try:
+                        error_json = response.json()
+                        error_text = error_json.get("message", error_text)
+                    except:
+                        pass
+                    raise Exception(f"删除任务失败: {error_text}")
+        except Exception as e:
+            logger.error(f"删除图片转3D任务失败: {str(e)}")
+            raise
+
+    async def delete_multi_image_task(self, task_id: str):
+        """删除多图转3D任务"""
+        url = f"{self.base_url}/openapi/v1/multi-image-to-3d/{task_id}"
+        try:
+            async with httpx.AsyncClient() as client:
+                response = await client.delete(url, headers=self.headers)
+                if response.status_code != 200:
+                    error_text = response.text
+                    try:
+                        error_json = response.json()
+                        error_text = error_json.get("message", error_text)
+                    except:
+                        pass
+                    raise Exception(f"删除任务失败: {error_text}")
+        except Exception as e:
+            logger.error(f"删除多图转3D任务失败: {str(e)}")
+            raise
+
     async def get_task(self, task_id: str, task_type: str = "text") -> Dict[str, Any]:
         """获取任务状态"""
         try:

@@ -344,6 +344,75 @@ async def get_task_status(task_id: str, current_user: dict = Depends(get_current
         logger.error("获取任务状态失败: %s", str(e))
         raise HTTPException(status_code=500, detail=str(e))
 
+@router.delete("/tasks/{task_id}")
+async def delete_task(task_id: str, current_user: dict = Depends(get_current_user)):
+    """删除任务及其相关数据"""
+    try:
+        # 先检查任务是否存在
+        check_query = """
+            SELECT id, task_id, task_type, preview_task_id
+            FROM generation_tasks
+            WHERE task_id = %s AND user_id = %s
+        """
+        task = await db.fetch_one(check_query, (task_id, current_user["user_id"]))
+        
+        if not task:
+            raise HTTPException(status_code=404, detail="任务不存在")
+
+        # 查找所有引用此任务作为预览任务的精细化任务
+        refined_query = """
+            SELECT id, task_id, task_type
+            FROM generation_tasks
+            WHERE preview_task_id = %s AND user_id = %s
+        """
+        refined_tasks = await db.fetch_all(refined_query, (task_id, current_user["user_id"]))
+
+        # 删除所有精细化任务
+        for refined_task in refined_tasks:
+            try:
+                # 尝试删除远程任务
+                if refined_task["task_type"] == "text":
+                    await meshy_client.delete_text_task(refined_task["task_id"])
+                elif refined_task["task_type"] == "image":
+                    await meshy_client.delete_image_task(refined_task["task_id"])
+                elif refined_task["task_type"] == "multi_image":
+                    await meshy_client.delete_multi_image_task(refined_task["task_id"])
+            except Exception as e:
+                logger.error(f"删除精细化远程任务失败 {refined_task['task_id']}: {str(e)}")
+
+            # 删除数据库记录
+            delete_refined_query = """
+                DELETE FROM generation_tasks
+                WHERE id = %s AND user_id = %s
+            """
+            await db.execute(delete_refined_query, (refined_task["id"], current_user["user_id"]))
+
+        # 删除原始任务的远程数据
+        try:
+            if task["task_type"] == "text":
+                await meshy_client.delete_text_task(task_id)
+            elif task["task_type"] == "image":
+                await meshy_client.delete_image_task(task_id)
+            elif task["task_type"] == "multi_image":
+                await meshy_client.delete_multi_image_task(task_id)
+        except Exception as e:
+            logger.error(f"删除原始远程任务失败 {task_id}: {str(e)}")
+
+        # 删除原始任务的数据库记录
+        delete_query = """
+            DELETE FROM generation_tasks
+            WHERE id = %s AND user_id = %s
+        """
+        await db.execute(delete_query, (task["id"], current_user["user_id"]))
+
+        return {"message": "任务已删除"}
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error("删除任务失败: %s", str(e))
+        raise HTTPException(status_code=500, detail=str(e))
+
 @router.post("/upload")
 async def upload_images(file: UploadFile = File(...), current_user: dict = Depends(get_current_user)) -> Dict[str, str]:
     """上传图片并返回base64编码"""

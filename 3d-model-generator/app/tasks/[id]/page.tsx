@@ -9,12 +9,22 @@ import { Button } from "@/components/ui/button"
 import { TaskProgress } from "@/components/tasks/task-progress"
 import { ModelViewer } from "@/components/tasks/model-viewer"
 import { ApiService } from "@/lib/api"
-import { ArrowLeft, RefreshCw, Brush, Wand2, Download } from "lucide-react"
+import { ArrowLeft, RefreshCw, Brush, Wand2, Download, Trash2 } from "lucide-react"
 import Link from "next/link"
 import { cn } from "@/lib/utils"
 import { toast } from "@/components/ui/use-toast"
 import { TaskService } from "@/lib/tasks"
 import { Badge } from "@/components/ui/badge"
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog"
 
 interface TaskStatus {
   id: number
@@ -54,6 +64,8 @@ function TaskDetailPage() {
   const [isGeneratingTexture, setIsGeneratingTexture] = useState(false)
   const [isRefining, setIsRefining] = useState(false)
   const [activeTexture, setActiveTexture] = useState<string | null>(null)
+  const [isDeleting, setIsDeleting] = useState(false)
+  const [showDeleteDialog, setShowDeleteDialog] = useState(false)
 
   const loadTask = useCallback(async (showLoading = true) => {
     try {
@@ -112,6 +124,27 @@ function TaskDetailPage() {
         variant: "destructive",
       })
       setIsRefining(false)
+    }
+  }
+
+  const handleDelete = async () => {
+    if (!task) return;
+    
+    setIsDeleting(true)
+    try {
+      await ApiService.deleteTask(task.task_id)
+      toast({
+        title: "删除成功",
+        description: "任务已成功删除",
+      })
+      router.push("/tasks")
+    } catch (error) {
+      toast({
+        title: "删除失败",
+        description: error instanceof Error ? error.message : "删除任务时发生错误",
+        variant: "destructive",
+      })
+      setIsDeleting(false)
     }
   }
 
@@ -392,7 +425,7 @@ function TaskDetailPage() {
                 </Button>
               )}
 
-              {task.status === "completed" && task.task_type === "text" && !task.preview_task_id && !task.texture_urls && (
+              {task.status === "completed" && task.task_type === "text" && !task.preview_task_id && (
                 <Button
                   variant="default"
                   onClick={handleRefine}
@@ -403,6 +436,57 @@ function TaskDetailPage() {
                   {isRefining ? "精细化生成中..." : "精细化生成"}
                 </Button>
               )}
+
+              <Button
+                variant="destructive"
+                onClick={() => setShowDeleteDialog(true)}
+                disabled={isDeleting}
+                className="w-full cursor-pointer"
+              >
+                {isDeleting ? (
+                  <>
+                    <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white mr-2" />
+                    删除中...
+                  </>
+                ) : (
+                  <>
+                    <Trash2 className="h-4 w-4 mr-2" />
+                    删除任务
+                  </>
+                )}
+              </Button>
+
+              {/* 删除确认对话框 */}
+              <AlertDialog open={showDeleteDialog} onOpenChange={setShowDeleteDialog}>
+                <AlertDialogContent>
+                  <AlertDialogHeader>
+                    <AlertDialogTitle>确认删除任务？</AlertDialogTitle>
+                    <AlertDialogDescription>
+                      {task.preview_task_id ? (
+                        "此操作将删除此精细化任务。"
+                      ) : task.task_type === "text" ? (
+                        "此操作将删除此预览任务及其相关的精细化任务（如果有）。"
+                      ) : (
+                        "此操作将永久删除此任务。"
+                      )}
+                      此操作无法撤销。
+                    </AlertDialogDescription>
+                  </AlertDialogHeader>
+                  <AlertDialogFooter>
+                    <AlertDialogCancel disabled={isDeleting}>取消</AlertDialogCancel>
+                    <AlertDialogAction
+                      onClick={handleDelete}
+                      disabled={isDeleting}
+                      className={cn(
+                        "bg-destructive text-destructive-foreground hover:bg-destructive/90",
+                        isDeleting && "opacity-50 cursor-not-allowed"
+                      )}
+                    >
+                      {isDeleting ? "删除中..." : "确认删除"}
+                    </AlertDialogAction>
+                  </AlertDialogFooter>
+                </AlertDialogContent>
+              </AlertDialog>
             </div>
           </div>
 

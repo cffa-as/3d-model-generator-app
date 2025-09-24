@@ -39,8 +39,13 @@ CREATE TABLE IF NOT EXISTS generation_tasks (
     ai_model VARCHAR(20),  -- AI模型版本
     
     FOREIGN KEY (user_id) REFERENCES users(id),
-    FOREIGN KEY (preview_task_id) REFERENCES generation_tasks(task_id)
+    FOREIGN KEY (preview_task_id) REFERENCES generation_tasks(task_id) ON DELETE CASCADE
 );
+
+-- 添加索引（如果索引已存在会报错，可以忽略）
+CREATE INDEX idx_task_id ON generation_tasks(task_id);
+CREATE INDEX idx_user_id ON generation_tasks(user_id);
+CREATE INDEX idx_preview_task_id ON generation_tasks(preview_task_id);
 
 -- 插入默认管理员用户
 INSERT INTO users (username, password, email, is_admin)
