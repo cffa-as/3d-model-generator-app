@@ -39,7 +39,17 @@ export function Navbar() {
       description: "期待您的下次使用",
     })
     // 使用 replace 而不是 push，避免历史记录
-    await router.replace("/")
+    await router.replace("/auth")
+    // 强制刷新页面
+    window.location.reload()
+  }
+
+  const handleSwitchAccount = async () => {
+    setDropdownOpen(false)
+    // 先退出登录
+    logout()
+    // 跳转到登录页面
+    await router.replace("/auth")
     // 强制刷新页面
     window.location.reload()
   }
@@ -155,6 +165,13 @@ export function Navbar() {
                         管理面板
                       </Link>
                           )}
+                          <button
+                            onClick={handleSwitchAccount}
+                            className="flex w-full items-center px-3 py-2 text-sm hover:bg-accent rounded-sm"
+                          >
+                            <User className="mr-2 h-4 w-4" />
+                            切换账号
+                          </button>
                         </div>
                         <div className="border-t border-border/50" />
                         <div className="p-1 md:hidden">
