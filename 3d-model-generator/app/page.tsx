@@ -9,6 +9,7 @@ import { useAuth } from "@/hooks/use-auth"
 import { AuthProvider } from "@/hooks/use-auth"
 import { Cable as Cube, Sparkles, ImageIcon, Type, Images, Download, ArrowRight, Play } from "lucide-react"
 import Link from "next/link"
+import { Badge } from "@/components/ui/badge"
 
 function HomePage() {
   const { user } = useAuth()
@@ -182,31 +183,83 @@ function HomePage() {
         </div>
       </section>
 
-      {/* 3D模型展示区域 */}
-      <section className="py-20 px-4 sm:px-6 lg:px-8">
-        <div className="max-w-7xl mx-auto">
-          <div className="text-center mb-16">
-            <h2 className="text-4xl font-bold mb-4 text-balance">精美的3D模型展示</h2>
-            <p className="text-xl text-muted-foreground text-pretty">查看我们AI生成的高质量3D模型作品</p>
+      {/* 精品模型展示 */}
+      <section className="py-10 bg-black/5 backdrop-blur-sm">
+        <div className="container mx-auto px-4">
+          <h2 className="text-3xl font-bold text-center mb-6">精品模型展示</h2>
+          <div className="grid grid-cols-1 gap-6">
+            {/* 蝙蝠侠模型 */}
+            <div className="group relative overflow-hidden rounded-xl bg-black/20 p-5 backdrop-blur-sm hover:bg-black/30 transition">
+              <div className="flex flex-col md:flex-row gap-5">
+                <div className="md:w-[45%] overflow-hidden rounded-lg bg-black/10">
+                  <img 
+                    src="/showcase/batman.jpg" 
+                    alt="蝙蝠侠角色模型"
+                    className="w-full h-[320px] object-contain"
+                  />
+                </div>
+                <div className="md:w-[55%] space-y-3 flex flex-col justify-center">
+                  <h3 className="text-xl font-semibold">蝙蝠侠角色模型</h3>
+                  <p className="text-muted-foreground">高品质游戏角色模型，完美展现蝙蝠侠的威严形象。优化的拓扑结构，适合游戏引擎实时渲染。</p>
+                  <div className="flex flex-wrap gap-2">
+                    <Badge className="text-sm">游戏角色</Badge>
+                    <Badge variant="outline" className="text-sm">高精度</Badge>
+                    <Badge variant="outline" className="text-sm">PBR材质</Badge>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            {/* 猫娘模型 */}
+            <div className="group relative overflow-hidden rounded-xl bg-black/20 p-5 backdrop-blur-sm hover:bg-black/30 transition">
+              <div className="flex flex-col md:flex-row gap-5">
+                <div className="md:w-[45%] overflow-hidden rounded-lg bg-black/10">
+                  <img 
+                    src="/showcase/catgirl.jpg" 
+                    alt="可爱猫娘模型"
+                    className="w-full h-[320px] object-contain"
+                  />
+                </div>
+                <div className="md:w-[55%] space-y-3 flex flex-col justify-center">
+                  <h3 className="text-xl font-semibold">可爱猫娘模型</h3>
+                  <p className="text-muted-foreground">二次元风格角色模型，细腻的服装褶皱和毛发效果。适合动画和游戏使用，支持全身骨骼动画。</p>
+                  <div className="flex flex-wrap gap-2">
+                    <Badge className="text-sm">动画角色</Badge>
+                    <Badge variant="outline" className="text-sm">二次元风格</Badge>
+                    <Badge variant="outline" className="text-sm">骨骼动画</Badge>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            {/* 防化服角色 */}
+            <div className="group relative overflow-hidden rounded-xl bg-black/20 p-5 backdrop-blur-sm hover:bg-black/30 transition">
+              <div className="flex flex-col md:flex-row gap-5">
+                <div className="md:w-[45%] overflow-hidden rounded-lg bg-black/10">
+                  <img 
+                    src="/showcase/hazmat.jpg" 
+                    alt="防化服角色模型"
+                    className="w-full h-[320px] object-contain"
+                  />
+                </div>
+                <div className="md:w-[55%] space-y-3 flex flex-col justify-center">
+                  <h3 className="text-xl font-semibold">防化服角色模型</h3>
+                  <p className="text-muted-foreground">写实风格的防化服角色，丰富的装备细节和材质表现。适合科幻、生化类游戏场景。</p>
+                  <div className="flex flex-wrap gap-2">
+                    <Badge className="text-sm">写实角色</Badge>
+                    <Badge variant="outline" className="text-sm">高细节</Badge>
+                    <Badge variant="outline" className="text-sm">次世代材质</Badge>
+                  </div>
+                </div>
+              </div>
+            </div>
           </div>
 
-          <div className="grid md:grid-cols-3 gap-8">
-            {[1, 2, 3].map((item) => (
-              <Card key={item} className="glass group overflow-hidden">
-                <CardContent className="p-0">
-                  <div className="aspect-square bg-gradient-to-br from-primary/20 to-blue-500/20 flex items-center justify-center">
-                    <div className="text-center">
-                      <Cube className="h-16 w-16 text-primary mx-auto mb-4 animate-float" />
-                      <p className="text-muted-foreground">3D模型预览</p>
-                    </div>
-                  </div>
-                  <div className="p-6">
-                    <h3 className="font-semibold mb-2">示例模型 {item}</h3>
-                    <p className="text-sm text-muted-foreground">由AI从文本描述生成的高质量3D模型</p>
-                  </div>
-                </CardContent>
-              </Card>
-            ))}
+          <div className="mt-6 text-center">
+            <Button size="lg" className="bg-gradient-to-r from-purple-500 to-blue-500 hover:from-purple-600 hover:to-blue-600">
+              开始创建您的3D模型
+              <ArrowRight className="ml-2 h-4 w-4" />
+            </Button>
           </div>
         </div>
       </section>

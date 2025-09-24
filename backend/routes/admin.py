@@ -156,61 +156,213 @@ async def evaluate_task(task_id: str, current_user: dict = Depends(get_admin_use
             face_count = len(mesh.faces)
             surface_area = float(mesh.area)
             
-            # 1. 法线分布
-            normal_consistency = float(np.abs(mesh.face_normals).mean())
-            normal_score = round(min(10, normal_consistency * 12), 2)
+            # 1. 拓扑结构评估 (35%)
+            topology_score = 0
             
-            # 2. 面片质量
+            # 检查非流形边缘
+            non_manifold_edges = mesh.edges_unique[mesh.edges_unique_length > 2]
+            edge_ratio = len(non_manifold_edges) / len(mesh.edges_unique)
+            if edge_ratio < 0.03:
+                topology_score += 3
+                logger.info("- 非流形边缘极少 (+3分)")
+            elif edge_ratio < 0.05:
+                topology_score += 2.5
+                logger.info("- 非流形边缘很少 (+2.5分)")
+            elif edge_ratio < 0.08:
+                topology_score += 2
+                logger.info("- 非流形边缘较少 (+2分)")
+            elif edge_ratio < 0.1:
+                topology_score += 1.5
+                logger.info("- 非流形边缘一般 (+1.5分)")
+            else:
+                topology_score += 1
+                logger.info("- 非流形边缘较多 (+1分)")
+            
+            # 检查重叠顶点
+            unique_vertices = len(np.unique(mesh.vertices, axis=0))
+            vertex_ratio = unique_vertices / len(mesh.vertices)
+            if vertex_ratio > 0.97:
+                topology_score += 3
+                logger.info("- 顶点重叠极少 (+3分)")
+            elif vertex_ratio > 0.95:
+                topology_score += 2.5
+                logger.info("- 顶点重叠很少 (+2.5分)")
+            elif vertex_ratio > 0.92:
+                topology_score += 2
+                logger.info("- 顶点重叠较少 (+2分)")
+            elif vertex_ratio > 0.9:
+                topology_score += 1.5
+                logger.info("- 顶点重叠一般 (+1.5分)")
+            else:
+                topology_score += 1
+                logger.info("- 顶点重叠较多 (+1分)")
+            
+            # 检查面片连接性
+            if mesh.is_watertight:
+                topology_score += 4
+                logger.info("- 完全流形网格 (+4分)")
+            else:
+                # 检查边界边比例
+                edges_unique = mesh.edges_unique
+                edge_counts = mesh.edges_unique_length
+                boundary_edges = edges_unique[edge_counts == 1]
+                boundary_ratio = float(len(boundary_edges) / len(edges_unique)) if len(edges_unique) > 0 else 1.0
+                if boundary_ratio < 0.03:
+                    topology_score += 3
+                    logger.info("- 基本流形 (+3分)")
+                elif boundary_ratio < 0.05:
+                    topology_score += 2.5
+                    logger.info("- 接近流形 (+2.5分)")
+                elif boundary_ratio < 0.08:
+                    topology_score += 2
+                    logger.info("- 部分流形 (+2分)")
+                elif boundary_ratio < 0.1:
+                    topology_score += 1.5
+                    logger.info("- 轻微非流形 (+1.5分)")
+                else:
+                    topology_score += 1
+                    logger.info("- 非流形网格 (+1分)")
+            
+            # 2. 几何准确度评估 (35%)
+            geometry_score = 0
+            
+            # 检查表面法线连续性
+            normal_consistency = float(np.abs(mesh.face_normals).mean())
+            if normal_consistency > 0.95:
+                geometry_score += 3
+                logger.info("- 法线连续性极好 (+3分)")
+            elif normal_consistency > 0.9:
+                geometry_score += 2.5
+                logger.info("- 法线连续性很好 (+2.5分)")
+            elif normal_consistency > 0.85:
+                geometry_score += 2
+                logger.info("- 法线连续性良好 (+2分)")
+            elif normal_consistency > 0.8:
+                geometry_score += 1.5
+                logger.info("- 法线连续性一般 (+1.5分)")
+            else:
+                geometry_score += 1
+                logger.info("- 法线连续性较差 (+1分)")
+            
+            # 检查边长比
             edges = mesh.edges_unique_length
             if len(edges) > 0:
                 aspect_ratio = float(np.max(edges) / np.min(edges))
-                aspect_score = round(10 * np.exp(-aspect_ratio / 50), 2)
+                if aspect_ratio < 3:
+                    geometry_score += 4
+                    logger.info("- 边长比极好 (+4分)")
+                elif aspect_ratio < 5:
+                    geometry_score += 3
+                    logger.info("- 边长比很好 (+3分)")
+                elif aspect_ratio < 7:
+                    geometry_score += 2.5
+                    logger.info("- 边长比良好 (+2.5分)")
+                elif aspect_ratio < 10:
+                    geometry_score += 2
+                    logger.info("- 边长比一般 (+2分)")
+                else:
+                    geometry_score += 1
+                    logger.info("- 边长比较大 (+1分)")
+            
+            # 检查体积
+            volume = abs(mesh.volume)
+            if volume > 0.01:
+                geometry_score += 3
+                logger.info("- 体积合适 (+3分)")
+            elif volume > 0.005:
+                geometry_score += 2.5
+                logger.info("- 体积较好 (+2.5分)")
+            elif volume > 0.001:
+                geometry_score += 2
+                logger.info("- 体积尚可 (+2分)")
+            elif volume > 0.0005:
+                geometry_score += 1.5
+                logger.info("- 体积偏小 (+1.5分)")
             else:
-                aspect_ratio = 0
-                aspect_score = 5.0
+                geometry_score += 1
+                logger.info("- 体积很小 (+1分)")
             
-            # 3. 完整性
-            is_watertight = bool(mesh.is_watertight)
-            is_volume = bool(mesh.is_volume)
+            # 3. 渲染效率评估 (30%)
+            render_score = 0
             
-            edges_unique = mesh.edges_unique
-            edge_counts = mesh.edges_unique_length
-            boundary_edges = edges_unique[edge_counts == 1]
-            boundary_ratio = float(len(boundary_edges) / len(edges_unique)) if len(edges_unique) > 0 else 0
+            # 检查面片数量
+            face_count = len(mesh.faces)
+            if face_count < 30000:
+                render_score += 4
+                logger.info("- 面片数量优化 (+4分)")
+            elif face_count < 50000:
+                render_score += 3
+                logger.info("- 面片数量很好 (+3分)")
+            elif face_count < 70000:
+                render_score += 2.5
+                logger.info("- 面片数量良好 (+2.5分)")
+            elif face_count < 100000:
+                render_score += 2
+                logger.info("- 面片数量适中 (+2分)")
+            else:
+                render_score += 1
+                logger.info("- 面片数量较多 (+1分)")
             
-            completeness_score = 0
-            if is_watertight:
-                completeness_score += 3
-            if is_volume:
-                completeness_score += 2
-            if len(boundary_edges) == 0:
-                completeness_score += 5
-            elif boundary_ratio < 0.1:
-                completeness_score += 5
-            elif boundary_ratio < 0.2:
-                completeness_score += 3
+            # 检查顶点密度
+            vertex_density = len(mesh.vertices) / mesh.area if mesh.area > 0 else 0
+            if 0.1 < vertex_density < 15:
+                render_score += 3
+                logger.info("- 顶点密度合适 (+3分)")
+            elif 0.05 < vertex_density < 20:
+                render_score += 2.5
+                logger.info("- 顶点密度较好 (+2.5分)")
+            elif 0.03 < vertex_density < 30:
+                render_score += 2
+                logger.info("- 顶点密度尚可 (+2分)")
+            elif 0.01 < vertex_density < 50:
+                render_score += 1.5
+                logger.info("- 顶点密度一般 (+1.5分)")
+            else:
+                render_score += 1
+                logger.info("- 顶点密度不合适 (+1分)")
             
-            # 4. 细节保留
-            vertex_density = float(vertex_count / surface_area) if surface_area > 0 else 0
-            detail_score = round(min(10, 2 * np.log10(vertex_density + 1)), 2)
+            # 检查材质和UV
+            has_material = False
+            try:
+                if hasattr(mesh, 'visual'):
+                    if hasattr(mesh.visual, 'material') and mesh.visual.material is not None:
+                        has_material = True
+                    elif isinstance(mesh.visual, trimesh.visual.ColorVisuals) and mesh.visual.vertex_colors is not None:
+                        has_material = True
+                    elif isinstance(mesh.visual, trimesh.visual.TextureVisuals) and mesh.visual.uv is not None:
+                        has_material = True
+            except Exception as e:
+                logger.warning(f"检查材质时出错: {str(e)}")
+                
+            if has_material:
+                render_score += 3
+                logger.info("- 材质设置合理 (+3分)")
+            else:
+                render_score += 1
+                logger.info("- 缺少材质设置 (+1分)")
             
-            # 最终得分
+            # 计算最终得分
             final_score = round(
-                normal_score * 0.35 +
-                aspect_score * 0.15 +
-                completeness_score * 0.35 +
-                detail_score * 0.15,
+                topology_score * 0.35 +    # 拓扑结构权重35%
+                geometry_score * 0.35 +    # 几何准确度权重35%
+                render_score * 0.30,       # 渲染效率权重30%
                 2
             )
+            
+            logger.info(f"\n评分详情:")
+            logger.info(f"- 拓扑结构 (35%): {topology_score:.2f}")
+            logger.info(f"- 几何准确度 (35%): {geometry_score:.2f}")
+            logger.info(f"- 渲染效率 (30%): {render_score:.2f}")
+            logger.info(f"最终得分: {final_score:.2f}")
 
             # 保存评估结果到数据库
             evaluation_history = {
                 "date": datetime.now().isoformat(),
                 "evaluator": "系统自动评估",
                 "scores": {
-                    "topology": normal_score,
-                    "geometry": aspect_score,
-                    "rendering": detail_score
+                    "topology": topology_score,
+                    "geometry": geometry_score,
+                    "rendering": render_score
                 },
                 "notes": "自动评估结果"
             }
@@ -234,12 +386,22 @@ async def evaluate_task(task_id: str, current_user: dict = Depends(get_admin_use
                 )
             """
             await db.execute(insert_query, (
-                task_id, vertex_count, face_count, surface_area,
-                normal_consistency, normal_score,
-                aspect_ratio, aspect_score,
-                is_watertight, is_volume, boundary_ratio, completeness_score,
-                vertex_density, detail_score,
-                final_score, log_capture.getvalue()
+                task_id, 
+                int(vertex_count),  # 确保是整数
+                int(face_count),    # 确保是整数
+                float(surface_area), # 确保是浮点数
+                float(normal_consistency),
+                float(topology_score),
+                float(aspect_ratio),
+                float(geometry_score),
+                bool(mesh.is_watertight),  # 转换为Python布尔值
+                bool(volume > 0.01),       # 转换为Python布尔值
+                float(boundary_ratio),
+                float(topology_score),
+                float(vertex_density),
+                float(render_score),
+                float(final_score),
+                log_capture.getvalue()
             ))
 
             # 更新任务表
@@ -261,30 +423,33 @@ async def evaluate_task(task_id: str, current_user: dict = Depends(get_admin_use
             """
             history_json = json.dumps(evaluation_history)
             await db.execute(update_query, (
-                normal_score,
-                aspect_score,
-                detail_score,
+                float(topology_score),
+                float(geometry_score),
+                float(render_score),
                 history_json,
                 history_json,
                 task_id
             ))
 
+            # 返回评估结果
             return {
-                "topology_score": normal_score,
-                "geometry_score": aspect_score,
-                "rendering_score": detail_score,
+                "topology_score": float(topology_score),
+                "geometry_score": float(geometry_score),
+                "rendering_score": float(render_score),
                 "evaluation_history": evaluation_history,
                 "details": {
-                    "vertex_count": vertex_count,
-                    "face_count": face_count,
-                    "surface_area": surface_area,
-                    "normal_consistency": normal_consistency,
-                    "aspect_ratio": aspect_ratio,
-                    "is_watertight": is_watertight,
-                    "is_volume": is_volume,
-                    "boundary_ratio": boundary_ratio,
-                    "vertex_density": vertex_density,
-                    "final_score": final_score
+                    "vertex_count": int(vertex_count),
+                    "face_count": int(face_count),
+                    "surface_area": float(surface_area),
+                    "normal_consistency": float(normal_consistency),
+                    "aspect_ratio": float(aspect_ratio),
+                    "is_watertight": bool(mesh.is_watertight),
+                    "is_volume": bool(volume > 0.01),
+                    "boundary_ratio": float(boundary_ratio),
+                    "vertex_density": float(vertex_density),
+                    "final_score": float(final_score),
+                    "completeness_score": float(topology_score),
+                    "evaluation_log": log_capture.getvalue()
                 }
             }
 

@@ -217,26 +217,26 @@ export function ModelEvaluation() {
   // 计算统计数据的辅助函数
   const calculateStats = (models: ModelEvaluation[]): EvaluationStats => {
     const evaluated = models.filter(m => m.status === "evaluated")
-    const topology_scores = evaluated.map(m => m.topology_score || 0)
-    const geometry_scores = evaluated.map(m => m.geometry_score || 0)
-    const rendering_scores = evaluated.map(m => m.rendering_score || 0)
+    const topology_scores = evaluated.map(m => m.topology_score || 1)  // 使用1作为默认值
+    const geometry_scores = evaluated.map(m => m.geometry_score || 1)
+    const rendering_scores = evaluated.map(m => m.rendering_score || 1)
 
     return {
       average_topology: calculateAverage(topology_scores),
       average_geometry: calculateAverage(geometry_scores),
       average_rendering: calculateAverage(rendering_scores),
-      min_topology: Math.min(...topology_scores, 0),
-      max_topology: Math.max(...topology_scores, 0),
-      min_geometry: Math.min(...geometry_scores, 0),
-      max_geometry: Math.max(...geometry_scores, 0),
-      min_rendering: Math.min(...rendering_scores, 0),
-      max_rendering: Math.max(...rendering_scores, 0),
+      min_topology: Math.min(...topology_scores),
+      max_topology: Math.max(...topology_scores),
+      min_geometry: Math.min(...geometry_scores),
+      max_geometry: Math.max(...geometry_scores),
+      min_rendering: Math.min(...rendering_scores),
+      max_rendering: Math.max(...rendering_scores),
       total_evaluated: evaluated.length,
       pending_count: models.filter(m => m.status === "pending").length,
       anomaly_count: evaluated.filter(m => 
-        (m.topology_score || 0) < 6 || 
-        (m.geometry_score || 0) < 6 || 
-        (m.rendering_score || 0) < 6
+        (m.topology_score || 0) < 4 || 
+        (m.geometry_score || 0) < 4 || 
+        (m.rendering_score || 0) < 4
       ).length
     }
   }
@@ -324,7 +324,7 @@ export function ModelEvaluation() {
           is_watertight: results.details.is_watertight,
           is_volume: results.details.is_volume,
           boundary_ratio: results.details.boundary_ratio,
-          score: results.details.completeness_score || 0
+          score: Number(results.details.completeness_score)  // 确保转换为数字
         },
         detail_preservation: {
           vertex_density: results.details.vertex_density,
@@ -774,19 +774,19 @@ export function ModelEvaluation() {
               <div className="space-y-2">
                 <h3 className="text-lg font-semibold">基本信息</h3>
                 <div className="grid grid-cols-2 gap-4 text-sm">
-                  <div>
+                  <div className="p-2 rounded bg-muted/30">
                     <span className="text-muted-foreground">顶点数：</span>
-                    <span className="font-medium">{evaluationDetails.basic_info.vertex_count}</span>
+                    <span className="font-medium">{evaluationDetails.basic_info.vertex_count.toLocaleString()}</span>
                   </div>
-                  <div>
+                  <div className="p-2 rounded bg-muted/30">
                     <span className="text-muted-foreground">面片数：</span>
-                    <span className="font-medium">{evaluationDetails.basic_info.face_count}</span>
+                    <span className="font-medium">{evaluationDetails.basic_info.face_count.toLocaleString()}</span>
                   </div>
-                  <div>
+                  <div className="p-2 rounded bg-muted/30">
                     <span className="text-muted-foreground">表面积：</span>
                     <span className="font-medium">{evaluationDetails.basic_info.surface_area.toFixed(2)}</span>
                   </div>
-                  <div>
+                  <div className="p-2 rounded bg-muted/30">
                     <span className="text-muted-foreground">评估时间：</span>
                     <span className="font-medium">
                       {new Date(evaluationDetails.basic_info.evaluation_date).toLocaleString("zh-CN")}
@@ -799,47 +799,74 @@ export function ModelEvaluation() {
               <div className="space-y-4">
                 <h3 className="text-lg font-semibold">评分详情</h3>
                 
-                {/* 法线分析 */}
-                <div className="space-y-2">
-                  <h4 className="font-medium">法线分布 ({evaluationDetails.normal_analysis.score.toFixed(2)}分)</h4>
-                  <div className="text-sm">
-                    <p>法线一致性：{evaluationDetails.normal_analysis.consistency.toFixed(3)}</p>
+                {/* 拓扑结构 */}
+                <div className="space-y-2 p-4 rounded-lg border border-border">
+                  <div className="flex items-center justify-between">
+                    <h4 className="font-medium text-base">拓扑结构 (35%)</h4>
+                    <div className={`px-2 py-1 rounded text-sm font-medium ${
+                      evaluationDetails.normal_analysis.score >= 7 ? "bg-green-500/20 text-green-500" :
+                      evaluationDetails.normal_analysis.score >= 4 ? "bg-yellow-500/20 text-yellow-500" :
+                      "bg-red-500/20 text-red-500"
+                    }`}>
+                      {evaluationDetails.normal_analysis.score.toFixed(2)}分
+                    </div>
+                  </div>
+                  <div className="text-sm space-y-1 mt-2 p-2 bg-muted/30 rounded">
+                    <p>• 非流形边缘检查：{evaluationDetails.normal_analysis.consistency.toFixed(3)}</p>
+                    <p>• 顶点重叠检查：{evaluationDetails.mesh_quality.aspect_ratio.toFixed(2)}</p>
+                    <p>• 面片连接性：{evaluationDetails.completeness.is_watertight ? "是" : "否"}</p>
                   </div>
                 </div>
 
-                {/* 面片质量 */}
-                <div className="space-y-2">
-                  <h4 className="font-medium">面片质量 ({evaluationDetails.mesh_quality.score.toFixed(2)}分)</h4>
-                  <div className="text-sm">
-                    <p>边长比：{evaluationDetails.mesh_quality.aspect_ratio.toFixed(2)}</p>
+                {/* 几何准确度 */}
+                <div className="space-y-2 p-4 rounded-lg border border-border">
+                  <div className="flex items-center justify-between">
+                    <h4 className="font-medium text-base">几何准确度 (35%)</h4>
+                    <div className={`px-2 py-1 rounded text-sm font-medium ${
+                      evaluationDetails.mesh_quality.score >= 7 ? "bg-green-500/20 text-green-500" :
+                      evaluationDetails.mesh_quality.score >= 4 ? "bg-yellow-500/20 text-yellow-500" :
+                      "bg-red-500/20 text-red-500"
+                    }`}>
+                      {evaluationDetails.mesh_quality.score.toFixed(2)}分
+                    </div>
+                  </div>
+                  <div className="text-sm space-y-1 mt-2 p-2 bg-muted/30 rounded">
+                    <p>• 法线连续性：{evaluationDetails.normal_analysis.consistency.toFixed(3)}</p>
+                    <p>• 边长比：{evaluationDetails.mesh_quality.aspect_ratio.toFixed(2)}</p>
+                    <p>• 体积检查：{evaluationDetails.completeness.is_volume ? "合格" : "不合格"}</p>
                   </div>
                 </div>
 
-                {/* 完整性 */}
-                <div className="space-y-2">
-                  <h4 className="font-medium">完整性 ({evaluationDetails.completeness.score.toFixed(2)}分)</h4>
-                  <div className="text-sm space-y-1">
-                    <p>是否流形：{evaluationDetails.completeness.is_watertight ? "是" : "否"}</p>
-                    <p>是否有体积：{evaluationDetails.completeness.is_volume ? "是" : "否"}</p>
-                    <p>边界边比例：{(evaluationDetails.completeness.boundary_ratio * 100).toFixed(1)}%</p>
+                {/* 渲染效率 */}
+                <div className="space-y-2 p-4 rounded-lg border border-border">
+                  <div className="flex items-center justify-between">
+                    <h4 className="font-medium text-base">渲染效率 (30%)</h4>
+                    <div className={`px-2 py-1 rounded text-sm font-medium ${
+                      evaluationDetails.detail_preservation.score >= 7 ? "bg-green-500/20 text-green-500" :
+                      evaluationDetails.detail_preservation.score >= 4 ? "bg-yellow-500/20 text-yellow-500" :
+                      "bg-red-500/20 text-red-500"
+                    }`}>
+                      {evaluationDetails.detail_preservation.score.toFixed(2)}分
+                    </div>
                   </div>
-                </div>
-
-                {/* 细节保留 */}
-                <div className="space-y-2">
-                  <h4 className="font-medium">细节保留 ({evaluationDetails.detail_preservation.score.toFixed(2)}分)</h4>
-                  <div className="text-sm">
-                    <p>顶点密度：{evaluationDetails.detail_preservation.vertex_density.toFixed(2)}</p>
+                  <div className="text-sm space-y-1 mt-2 p-2 bg-muted/30 rounded">
+                    <p>• 面片数量：{evaluationDetails.basic_info.face_count.toLocaleString()}</p>
+                    <p>• 顶点密度：{evaluationDetails.detail_preservation.vertex_density.toFixed(2)}</p>
+                    <p>• 边界边比例：{(evaluationDetails.completeness.boundary_ratio * 100).toFixed(1)}%</p>
                   </div>
                 </div>
 
                 {/* 最终得分 */}
-                <div className="mt-4 pt-4 border-t">
+                <div className="mt-6 pt-4 border-t">
                   <div className="flex items-center justify-between">
                     <span className="text-lg font-semibold">最终得分</span>
-                    <span className="text-2xl font-bold text-primary">
+                    <div className={`px-4 py-2 rounded text-2xl font-bold ${
+                      evaluationDetails.final_score >= 7 ? "bg-green-500/20 text-green-500" :
+                      evaluationDetails.final_score >= 4 ? "bg-yellow-500/20 text-yellow-500" :
+                      "bg-red-500/20 text-red-500"
+                    }`}>
                       {evaluationDetails.final_score.toFixed(2)}
-                    </span>
+                    </div>
                   </div>
                 </div>
               </div>
