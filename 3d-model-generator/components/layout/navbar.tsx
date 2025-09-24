@@ -69,13 +69,14 @@ export function Navbar() {
           <div className="flex justify-between items-center h-16">
             {/* Logo */}
             <Link href="/" className="flex items-center gap-2">
-              <Cube className="h-6 w-6 text-primary" />
+                <Cube className="h-6 w-6 text-primary" />
               <span className="font-semibold">创意3D建模</span>
             </Link>
 
             {/* Navigation Links */}
             {user && (
               <div className="hidden md:flex items-center gap-6">
+                <NavLink href="/" icon={Cube}>首页</NavLink>
                 <NavLink href="/dashboard" icon={LayoutDashboard}>工作台</NavLink>
                 <NavLink href="/tasks" icon={History}>任务历史</NavLink>
                 {isAdmin && <NavLink href="/admin" icon={BarChart3}>管理面板</NavLink>}
@@ -113,13 +114,21 @@ export function Navbar() {
                     {dropdownOpen && (
                       <div className="absolute right-0 mt-2 w-56 bg-popover rounded-md shadow-lg ring-1 ring-black ring-opacity-5">
                         <div className="p-2">
-                          <div className="flex flex-col space-y-1 leading-none">
-                            <p className="font-medium">{user.username}</p>
-                            <p className="text-xs text-muted-foreground">{user.email}</p>
-                          </div>
-                        </div>
+                      <div className="flex flex-col space-y-1 leading-none">
+                        <p className="font-medium">{user.username}</p>
+                        <p className="text-xs text-muted-foreground">{user.email}</p>
+                      </div>
+                    </div>
                         <div className="border-t border-border/50" />
                         <div className="p-1">
+                          <Link
+                            href="/"
+                            className="flex items-center px-3 py-2 text-sm hover:bg-accent rounded-sm"
+                            onClick={() => setDropdownOpen(false)}
+                          >
+                            <Cube className="mr-2 h-4 w-4" />
+                            首页
+                          </Link>
                           <Link
                             href="/dashboard"
                             className="flex items-center px-3 py-2 text-sm hover:bg-accent rounded-sm"
@@ -142,9 +151,9 @@ export function Navbar() {
                               className="flex items-center px-3 py-2 text-sm hover:bg-accent rounded-sm"
                               onClick={() => setDropdownOpen(false)}
                             >
-                              <BarChart3 className="mr-2 h-4 w-4" />
-                              管理面板
-                            </Link>
+                        <BarChart3 className="mr-2 h-4 w-4" />
+                        管理面板
+                      </Link>
                           )}
                         </div>
                         <div className="border-t border-border/50" />
@@ -156,8 +165,8 @@ export function Navbar() {
                             }}
                             className="flex w-full items-center px-3 py-2 text-sm hover:bg-accent rounded-sm"
                           >
-                            <LogOut className="mr-2 h-4 w-4" />
-                            退出登录
+                      <LogOut className="mr-2 h-4 w-4" />
+                      退出登录
                           </button>
                         </div>
                       </div>

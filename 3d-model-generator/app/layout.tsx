@@ -29,9 +29,9 @@ export default function RootLayout({
           disableTransitionOnChange
         >
           <AuthProvider>
-            <Suspense fallback={<div>Loading...</div>}>
-              <div className="min-h-screen bg-background gradient-mesh">{children}</div>
-            </Suspense>
+        <Suspense fallback={<div>Loading...</div>}>
+          <div className="min-h-screen bg-background gradient-mesh">{children}</div>
+        </Suspense>
             <Toaster />
           </AuthProvider>
         </ThemeProvider>

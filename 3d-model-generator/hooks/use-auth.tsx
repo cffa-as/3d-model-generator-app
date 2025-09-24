@@ -76,7 +76,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         setIsLoading(false)
       }
     } else {
-      setIsLoading(false)
+    setIsLoading(false)
     }
   }, [])
 
@@ -103,11 +103,11 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const logout = useCallback(() => {
     setIsLoading(true)
     try {
-      AuthService.logout()
-      setUser(null)
+    AuthService.logout()
+    setUser(null)
     } finally {
       setIsLoading(false)
-    }
+  }
   }, [])
 
   return <AuthContext.Provider value={{ user, login, register, logout, isLoading }}>{children}</AuthContext.Provider>

@@ -35,15 +35,15 @@ export function TaskProgress({
           <span className="text-sm text-muted-foreground">{progress}%</span>
         </div>
 
-        <Progress
-          value={progress}
-          className="h-2"
+          <Progress
+            value={progress}
+            className="h-2"
           data-indicator-class={cn(
-            status === "completed" && "bg-green-400",
-            status === "failed" && "bg-red-400",
+              status === "completed" && "bg-green-400",
+              status === "failed" && "bg-red-400",
             status === "pending" && "bg-yellow-400"
-          )}
-        />
+            )}
+          />
 
         {error && (
           <div className="flex items-center gap-2 text-sm text-red-400">

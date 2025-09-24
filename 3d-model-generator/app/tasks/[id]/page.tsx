@@ -122,8 +122,8 @@ function TaskDetailPage() {
 
   useEffect(() => {
     if (user && taskId) {
-      loadTask()
-    }
+          loadTask()
+        }
   }, [user, taskId, loadTask])
 
   // 轮询进度
@@ -317,7 +317,7 @@ function TaskDetailPage() {
                 >
                   <Wand2 className="h-4 w-4 mr-2" />
                   {isRefining ? "精细化生成中..." : "精细化生成"}
-                </Button>
+            </Button>
               )}
             </div>
           </div>

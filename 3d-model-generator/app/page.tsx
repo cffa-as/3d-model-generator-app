@@ -80,12 +80,26 @@ function HomePage() {
             {/* CTA按钮 */}
             <div className="flex flex-col sm:flex-row gap-4 justify-center items-center">
               {user ? (
-                <Button asChild size="lg" className="text-lg px-8 py-6">
-                  <Link href="/dashboard">
-                    开始创建
-                    <ArrowRight className="ml-2 h-5 w-5" />
-                  </Link>
-                </Button>
+                <>
+                  <Button asChild size="lg" className="text-lg px-8 py-6">
+                    <Link href="/dashboard">
+                      立即开始
+                      <ArrowRight className="ml-2 h-5 w-5" />
+                    </Link>
+                  </Button>
+                  <Button
+                    variant="outline"
+                    size="lg"
+                    className="text-lg px-8 py-6 glass bg-transparent"
+                    onClick={() => {
+                      setAuthMode("login")
+                      setAuthModalOpen(true)
+                    }}
+                  >
+                    <Play className="mr-2 h-5 w-5" />
+                    观看演示
+                  </Button>
+                </>
               ) : (
                 <>
                   <Button
@@ -96,7 +110,7 @@ function HomePage() {
                       setAuthModalOpen(true)
                     }}
                   >
-                    免费开始
+                    立即开始
                     <ArrowRight className="ml-2 h-5 w-5" />
                   </Button>
                   <Button
@@ -210,7 +224,14 @@ function HomePage() {
                 <p className="text-xl text-muted-foreground text-pretty">
                   加入数千名创作者，使用AI技术快速生成专业级3D模型
                 </p>
-                {!user && (
+                {user ? (
+                  <Button asChild size="lg" className="text-lg px-8 py-6">
+                    <Link href="/dashboard">
+                      前往工作台
+                      <ArrowRight className="ml-2 h-5 w-5" />
+                    </Link>
+                  </Button>
+                ) : (
                   <Button
                     size="lg"
                     className="text-lg px-8 py-6"
@@ -219,7 +240,7 @@ function HomePage() {
                       setAuthModalOpen(true)
                     }}
                   >
-                    立即开始免费试用
+                    立即开始
                     <ArrowRight className="ml-2 h-5 w-5" />
                   </Button>
                 )}

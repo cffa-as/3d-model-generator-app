@@ -41,16 +41,16 @@ export function ImageUpload({
 
     // 创建预览URL
     const newPreviewUrls = filesToProcess.map((file) => URL.createObjectURL(file))
-    
-    if (multiple) {
+
+        if (multiple) {
       setUploadedFiles((prev: File[]) => [...prev, ...filesToProcess])
       setPreviewUrls((prev: string[]) => [...prev, ...newPreviewUrls])
-    } else {
+        } else {
       // 清理之前的预览URL
       previewUrls.forEach(URL.revokeObjectURL)
       setUploadedFiles([filesToProcess[0]])
       setPreviewUrls([newPreviewUrls[0]])
-    }
+        }
     
     onUpload(filesToProcess)
   }

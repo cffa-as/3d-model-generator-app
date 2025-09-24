@@ -1,13 +1,11 @@
 "use client"
 
-import { useState, useEffect } from "react"
+import { useState } from "react"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
-import { Download, Eye, Maximize2, Cable as Cube, AlertCircle } from "lucide-react"
+import { Download, Eye, Maximize2, Cable as Cube } from "lucide-react"
 import { cn } from "@/lib/utils"
-import { AuthService } from "@/lib/auth"
-import { API_BASE_URL } from "@/lib/api"
 
 interface ModelViewerProps {
   modelUrl?: string
@@ -25,7 +23,6 @@ interface ModelViewerProps {
     roughness?: string
   }
   thumbnail?: string
-  taskId?: string
 }
 
 export function ModelViewer({
@@ -33,12 +30,9 @@ export function ModelViewer({
   model_urls,
   textureUrls,
   thumbnail,
-  taskId,
 }: ModelViewerProps) {
   const [isFullscreen, setIsFullscreen] = useState(false)
   const [activeTexture, setActiveTexture] = useState<string | null>(null)
-  const [thumbnailBlob, setThumbnailBlob] = useState<string | null>(null)
-  const [error, setError] = useState<string>("")
 
   const textureTypes = [
     { key: "base_color", label: "基础色", color: "bg-blue-400/10 text-blue-400" },
@@ -46,42 +40,6 @@ export function ModelViewer({
     { key: "normal", label: "法线", color: "bg-purple-400/10 text-purple-400" },
     { key: "roughness", label: "粗糙度", color: "bg-orange-400/10 text-orange-400" },
   ]
-
-  // 加载预览图
-  useEffect(() => {
-    if (!thumbnail || !taskId) return
-
-    const loadThumbnail = async () => {
-      try {
-        console.log('开始加载预览图:', taskId)
-        const token = AuthService.getToken()
-        console.log('使用token:', token?.slice(0, 10) + '...')
-        
-        const response = await fetch(`${API_BASE_URL}/tasks/preview/${taskId}`, {
-          headers: {
-            Authorization: `Bearer ${token}`,
-          },
-        })
-        
-        if (!response.ok) {
-          const error = await response.text()
-          throw new Error(`加载预览图失败: ${error}`)
-        }
-        
-        const blob = await response.blob()
-        console.log('预览图加载成功, 大小:', blob.size, 'bytes')
-        
-        const url = URL.createObjectURL(blob)
-        setThumbnailBlob(url)
-        return () => URL.revokeObjectURL(url)
-      } catch (err) {
-        console.error('加载预览图失败:', err)
-        setError(err instanceof Error ? err.message : '加载预览图失败')
-      }
-    }
-
-    loadThumbnail()
-  }, [thumbnail, taskId])
 
   const downloadModel = (url: string, filename: string) => {
     const link = document.createElement("a")
@@ -112,9 +70,9 @@ export function ModelViewer({
         <div className="aspect-square bg-gradient-to-br from-primary/10 to-blue-500/10 rounded-lg flex items-center justify-center relative overflow-hidden">
           {modelUrl ? (
             <div className="w-full h-full flex items-center justify-center">
-              {thumbnailBlob ? (
+              {thumbnail ? (
                 <img
-                  src={thumbnailBlob}
+                  src={thumbnail}
                   alt="3D模型预览"
                   className="max-w-full max-h-full object-contain rounded-lg"
                 />
@@ -130,16 +88,6 @@ export function ModelViewer({
             <div className="text-center">
               <Cube className="h-16 w-16 text-muted-foreground mx-auto mb-4 opacity-50" />
               <p className="text-muted-foreground">等待模型生成</p>
-            </div>
-          )}
-
-          {error && (
-            <div className="absolute inset-0 flex items-center justify-center bg-background/50 backdrop-blur-sm">
-              <div className="text-center">
-                <AlertCircle className="h-12 w-12 text-red-400 mx-auto mb-4" />
-                <p className="text-red-400 font-medium">加载失败</p>
-                <p className="text-sm text-muted-foreground mt-1">{error}</p>
-              </div>
             </div>
           )}
         </div>

@@ -48,7 +48,7 @@ function DashboardPage() {
   const loadRecentTasks = async () => {
     try {
       setLoadingTasks(true)
-      const tasks = await TaskService.getTasks(5, 0) // 只获取最近5个任务
+      const tasks = await TaskService.getTasks(3, 0) // 只获取最近3个任务
       setRecentTasks(tasks)
     } catch (error) {
       console.error("加载任务失败:", error)
@@ -207,7 +207,7 @@ function DashboardPage() {
                   </div>
                 ) : recentTasks.length > 0 ? (
                   <div className="space-y-3">
-                    {recentTasks.map((task) => (
+                    {recentTasks.slice(0, 3).map((task) => (
                       <Link
                         key={task.id}
                         href={`/tasks/${task.task_id}`}
@@ -231,13 +231,13 @@ function DashboardPage() {
                     </Button>
                   </div>
                 ) : (
-                  <div className="text-center py-8">
-                    <Clock className="h-12 w-12 text-muted-foreground mx-auto mb-3 opacity-50" />
-                    <p className="text-muted-foreground text-sm">暂无任务记录</p>
-                    <Button variant="outline" className="mt-4 bg-transparent" asChild>
+                <div className="text-center py-8">
+                  <Clock className="h-12 w-12 text-muted-foreground mx-auto mb-3 opacity-50" />
+                  <p className="text-muted-foreground text-sm">暂无任务记录</p>
+                  <Button variant="outline" className="mt-4 bg-transparent" asChild>
                       <Link href="/tasks">查看所有任务</Link>
-                    </Button>
-                  </div>
+                  </Button>
+                </div>
                 )}
               </CardContent>
             </Card>
