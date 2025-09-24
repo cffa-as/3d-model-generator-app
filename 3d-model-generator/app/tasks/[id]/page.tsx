@@ -520,6 +520,7 @@ function TaskDetailPage() {
                     <li>右键拖动：平移视角</li>
                     <li>滚轮：缩放模型</li>
                     <li>点击全屏按钮可以获得更好的查看体验</li>
+                    <li>点击调色板按钮可以更换背景颜色</li>
                   </ul>
                 </AlertDescription>
               </Alert>
