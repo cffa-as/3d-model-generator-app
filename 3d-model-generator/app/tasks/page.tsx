@@ -1,6 +1,6 @@
 "use client"
 
-import { useState, useEffect } from "react"
+import { useState, useEffect, useCallback } from "react"
 import { useRouter } from "next/navigation"
 import { Navbar } from "@/components/layout/navbar"
 import { useAuth, AuthProvider } from "@/hooks/use-auth"
@@ -72,6 +72,64 @@ function TasksPage() {
   const [showDeleteDialog, setShowDeleteDialog] = useState(false)
   const [taskToDelete, setTaskToDelete] = useState<TaskStatus | null>(null)
   const [showDownloadDialog, setShowDownloadDialog] = useState<string | null>(null)
+  const [isInitialLoad, setIsInitialLoad] = useState(true)
+
+  // 缓存加载的任务数据
+  const [cachedTasks, setCachedTasks] = useState<{
+    data: TaskStatus[] | null;
+    timestamp: number;
+  }>({ data: null, timestamp: 0 })
+
+  // 缓存过期时间设置为5分钟
+  const CACHE_EXPIRY = 5 * 60 * 1000
+
+  const loadTasks = useCallback(async (showLoading = true) => {
+    try {
+      // 检查缓存是否有效
+      const now = Date.now()
+      if (
+        cachedTasks.data && 
+        now - cachedTasks.timestamp < CACHE_EXPIRY
+      ) {
+        setTasks(cachedTasks.data)
+        setLoading(false)
+        return
+      }
+
+      if (showLoading) {
+        setLoading(true)
+      }
+      
+      const taskList = await TaskService.getTasks()
+      setTasks(taskList)
+      
+      // 更新缓存
+      setCachedTasks({
+        data: taskList,
+        timestamp: now
+      })
+    } catch (error) {
+      console.error("加载任务失败:", error)
+      if (showLoading) {
+        toast({
+          title: "加载失败",
+          description: error instanceof Error ? error.message : "加载任务列表失败",
+          variant: "destructive",
+        })
+      }
+    } finally {
+      if (showLoading) {
+        setLoading(false)
+      }
+      setIsInitialLoad(false)
+    }
+  }, [cachedTasks, toast])
+
+  // 预加载数据
+  const preloadTasks = useCallback(() => {
+    if (!user || loading) return
+    loadTasks(false)
+  }, [user, loading, loadTasks])
 
   useEffect(() => {
     if (!isLoading && !user) {
@@ -80,32 +138,25 @@ function TasksPage() {
   }, [user, isLoading, router])
 
   useEffect(() => {
-    if (user) {
+    if (user && isInitialLoad) {
       loadTasks()
     }
-  }, [user])
+  }, [user, isInitialLoad, loadTasks])
 
   useEffect(() => {
     filterTasks()
   }, [tasks, searchTerm, statusFilter])
 
-  const loadTasks = async () => {
-    try {
-      setLoading(true)
-      const taskList = await TaskService.getTasks()
-      console.log('加载到的任务列表:', taskList) // 添加调试日志
-      setTasks(taskList)
-    } catch (error) {
-      console.error("加载任务失败:", error)
-      toast({
-        title: "加载失败",
-        description: error instanceof Error ? error.message : "加载任务列表失败",
-        variant: "destructive",
-      })
-    } finally {
-      setLoading(false)
-    }
-  }
+  // 添加定期刷新机制
+  useEffect(() => {
+    if (!user) return
+
+    const intervalId = setInterval(() => {
+      loadTasks(false)
+    }, CACHE_EXPIRY)
+
+    return () => clearInterval(intervalId)
+  }, [user, loadTasks])
 
   const filterTasks = () => {
     let filtered = tasks
@@ -231,7 +282,7 @@ function TasksPage() {
   }
 
   return (
-    <div className="min-h-screen">
+    <div className="min-h-screen" onMouseEnter={preloadTasks}>
       <Navbar />
 
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
@@ -269,7 +320,7 @@ function TasksPage() {
                     <SelectItem value="failed">失败</SelectItem>
                   </SelectContent>
                 </Select>
-                <Button variant="outline" onClick={loadTasks} disabled={loading}>
+                <Button variant="outline" onClick={() => loadTasks(true)} disabled={loading}>
                   刷新
                 </Button>
               </div>
@@ -297,7 +348,7 @@ function TasksPage() {
             </CardContent>
           </Card>
         ) : (
-          <div className="grid gap-6">
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
             {filteredTasks.map((task) => (
               <Card key={task.id} className="glass hover:glass-strong transition-all duration-200">
                 <CardContent className="p-6">
