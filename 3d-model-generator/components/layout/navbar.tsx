@@ -17,6 +17,10 @@ import Link from "next/link"
 import { useRouter, usePathname } from "next/navigation"
 import { useToast } from "@/hooks/use-toast"
 import { cn } from "@/lib/utils"
+import React from "react"
+
+// 预加载常用路由
+const PREFETCH_ROUTES = ['/', '/dashboard', '/tasks', '/admin', '/admin/evaluation']
 
 export function Navbar() {
   const { user, logout } = useAuth()
@@ -26,6 +30,13 @@ export function Navbar() {
   const router = useRouter()
   const pathname = usePathname()
   const { toast } = useToast()
+
+  // 在组件挂载时预加载路由
+  React.useEffect(() => {
+    PREFETCH_ROUTES.forEach(route => {
+      router.prefetch(route)
+    })
+  }, [router])
 
   const handleAuthClick = (mode: "login" | "register") => {
     setAuthMode(mode)
@@ -38,19 +49,14 @@ export function Navbar() {
       title: "已退出登录",
       description: "期待您的下次使用",
     })
-    // 使用 replace 而不是 push，避免历史记录
     await router.replace("/auth")
-    // 强制刷新页面
     window.location.reload()
   }
 
   const handleSwitchAccount = async () => {
     setDropdownOpen(false)
-    // 先退出登录
     logout()
-    // 跳转到登录页面
     await router.replace("/auth")
-    // 强制刷新页面
     window.location.reload()
   }
 
@@ -61,9 +67,11 @@ export function Navbar() {
     return (
       <Link
         href={href}
+        prefetch={true}
         className={cn(
-          "flex items-center gap-2 text-foreground/80 hover:text-foreground transition-colors",
-          isActive && "text-foreground font-medium"
+          "flex items-center gap-2 text-foreground/80 hover:text-foreground transition-colors cursor-pointer",
+          "hover:bg-accent/50 px-3 py-2 rounded-md",
+          isActive && "text-foreground font-medium bg-accent/30"
         )}
       >
         <Icon className="h-4 w-4" />

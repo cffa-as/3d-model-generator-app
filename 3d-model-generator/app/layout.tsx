@@ -14,6 +14,13 @@ export const metadata: Metadata = {
   description: "使用AI技术，将创意转化为精美的3D模型，支持文字描述和图片智能建模",
 }
 
+// 加载中的UI组件
+const LoadingFallback = () => (
+  <div className="flex items-center justify-center min-h-screen">
+    <div className="animate-pulse text-lg">加载中...</div>
+  </div>
+)
+
 export default function RootLayout({
   children,
 }: Readonly<{
@@ -21,6 +28,10 @@ export default function RootLayout({
 }>) {
   return (
     <html lang="zh-CN" suppressHydrationWarning>
+      <head>
+        <link rel="preload" href="/fonts/geist-sans.woff2" as="font" type="font/woff2" crossOrigin="anonymous" />
+        <link rel="preload" href="/fonts/geist-mono.woff2" as="font" type="font/woff2" crossOrigin="anonymous" />
+      </head>
       <body className={`font-sans ${GeistSans.variable} ${GeistMono.variable} antialiased`}>
         <ThemeProvider
           attribute="class"
@@ -29,9 +40,9 @@ export default function RootLayout({
           disableTransitionOnChange
         >
           <AuthProvider>
-        <Suspense fallback={<div>Loading...</div>}>
-          <div className="min-h-screen bg-background gradient-mesh">{children}</div>
-        </Suspense>
+            <Suspense fallback={<LoadingFallback />}>
+              <div className="min-h-screen bg-background gradient-mesh">{children}</div>
+            </Suspense>
             <Toaster />
           </AuthProvider>
         </ThemeProvider>
