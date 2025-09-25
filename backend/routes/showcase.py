@@ -414,7 +414,7 @@ async def add_model_comment(
         comment_id = result["id"]
         logger.info("评论创建成功，ID: %s", comment_id)
 
-        # 获取完整的评论数据
+        # 立即获取完整的评论数据
         comment_query = """
             SELECT 
                 c.id,
@@ -424,9 +424,9 @@ async def add_model_comment(
                 u.username
             FROM model_comments c
             LEFT JOIN users u ON c.user_id = u.id
-            WHERE c.id = %s
+            WHERE c.id = LAST_INSERT_ID()
         """
-        new_comment = await db.fetch_one(comment_query, (comment_id,))
+        new_comment = await db.fetch_one(comment_query)
         if not new_comment:
             raise HTTPException(status_code=500, detail="无法获取新创建的评论")
 
