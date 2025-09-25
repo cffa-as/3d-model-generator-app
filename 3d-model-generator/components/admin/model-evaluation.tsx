@@ -438,10 +438,54 @@ export function ModelEvaluation() {
     <div className="space-y-6">
       <div className="flex items-center justify-between">
         <h2 className="text-2xl font-bold">模型评估系统</h2>
-        <Button variant="outline" size="sm" onClick={handleExport}>
-          <Download className="h-4 w-4 mr-2" />
-          导出报告
-        </Button>
+        <div className="flex items-center gap-3">
+          <Button 
+            size="default"
+            className="bg-gradient-to-r from-purple-500 to-blue-500 hover:from-purple-600 hover:to-blue-600 text-white shadow-lg hover:shadow-xl transition-all duration-200 font-medium"
+            onClick={async () => {
+              try {
+                const pendingModels = models.filter(m => m.status === "pending");
+                if (pendingModels.length === 0) {
+                  toast({
+                    title: "无需评估",
+                    description: "没有待评估的模型",
+                  });
+                  return;
+                }
+
+                toast({
+                  title: "开始评估",
+                  description: `正在评估 ${pendingModels.length} 个模型...`,
+                });
+
+                // 并行评估所有待评估模型
+                await Promise.all(pendingModels.map(model => handleAutoEvaluate(model)));
+
+                toast({
+                  title: "评估完成",
+                  description: `成功评估 ${pendingModels.length} 个模型`,
+                });
+              } catch (error) {
+                toast({
+                  title: "评估失败",
+                  description: "批量评估过程中出现错误",
+                  variant: "destructive",
+                });
+              }
+            }}
+          >
+            <Wand2 className="h-5 w-5 mr-2" />
+            一键评估
+          </Button>
+          <Button 
+            size="default"
+            className="bg-gradient-to-r from-green-500 to-emerald-500 hover:from-green-600 hover:to-emerald-600 text-white shadow-lg hover:shadow-xl transition-all duration-200 font-medium"
+            onClick={handleExport}
+          >
+            <Download className="h-5 w-5 mr-2" />
+            导出报告
+          </Button>
+        </div>
       </div>
 
       <Tabs value={activeTab} onValueChange={setActiveTab}>

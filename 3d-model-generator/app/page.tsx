@@ -10,11 +10,13 @@ import { AuthProvider } from "@/hooks/use-auth"
 import { Cable as Cube, Sparkles, ImageIcon, Type, Images, Download, ArrowRight, Play } from "lucide-react"
 import Link from "next/link"
 import { Badge } from "@/components/ui/badge"
+import { useRouter } from "next/navigation"
 
 function HomePage() {
   const { user } = useAuth()
   const [authModalOpen, setAuthModalOpen] = useState(false)
   const [authMode, setAuthMode] = useState<"login" | "register">("register")
+  const router = useRouter()
 
   const features = [
     {
@@ -256,9 +258,20 @@ function HomePage() {
           </div>
 
           <div className="mt-6 text-center">
-            <Button size="lg" className="bg-gradient-to-r from-purple-500 to-blue-500 hover:from-purple-600 hover:to-blue-600">
+            <Button 
+              size="lg" 
+              className="bg-gradient-to-r from-purple-500 to-blue-500 hover:from-purple-600 hover:to-blue-600 shadow-lg hover:shadow-xl transition-all duration-200 text-lg px-8 py-6"
+              onClick={() => {
+                if (user) {
+                  router.push('/dashboard');
+                } else {
+                  setAuthMode("register");
+                  setAuthModalOpen(true);
+                }
+              }}
+            >
               开始创建您的3D模型
-              <ArrowRight className="ml-2 h-4 w-4" />
+              <ArrowRight className="ml-2 h-5 w-5" />
             </Button>
           </div>
         </div>

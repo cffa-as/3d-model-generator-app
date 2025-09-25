@@ -112,6 +112,27 @@ async def get_all_tasks(current_user: dict = Depends(get_admin_user)) -> List[Di
 async def evaluate_task(task_id: str, current_user: dict = Depends(get_admin_user)) -> Dict[str, Any]:
     """评估指定任务的3D模型"""
     try:
+        # 检查任务是否已经在评估中
+        query = """
+            SELECT evaluation_status
+            FROM generation_tasks
+            WHERE task_id = %s
+            FOR UPDATE SKIP LOCKED
+        """
+        task_status = await db.fetch_one(query, (task_id,))
+        
+        if not task_status:
+            raise HTTPException(status_code=404, detail="任务不存在")
+            
+        if task_status['evaluation_status'] == 'evaluating':
+            raise HTTPException(status_code=409, detail="任务正在评估中")
+            
+        # 更新任务状态为评估中
+        await db.execute(
+            "UPDATE generation_tasks SET evaluation_status = 'evaluating' WHERE task_id = %s",
+            (task_id,)
+        )
+
         # 获取任务信息
         query = """
             SELECT model_urls
@@ -456,9 +477,20 @@ async def evaluate_task(task_id: str, current_user: dict = Depends(get_admin_use
         finally:
             logger.removeHandler(log_handler)
             log_capture.close()
+            # 如果出错，确保状态被重置
+            if 'topology_score' not in locals():
+                await db.execute(
+                    "UPDATE generation_tasks SET evaluation_status = 'pending' WHERE task_id = %s",
+                    (task_id,)
+                )
 
     except Exception as e:
         logger.error("评估任务失败: %s", str(e))
+        # 确保状态被重置
+        await db.execute(
+            "UPDATE generation_tasks SET evaluation_status = 'pending' WHERE task_id = %s",
+            (task_id,)
+        )
         raise HTTPException(status_code=500, detail=str(e))
 
 @router.get("/tasks/{task_id}/evaluation")

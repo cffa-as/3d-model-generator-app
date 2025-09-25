@@ -1,6 +1,6 @@
 "use client"
 
-import { useState } from "react"
+import { useState, useCallback } from "react"
 import { Button } from "@/components/ui/button"
 import { useAuth } from "@/hooks/use-auth"
 import { AuthModal } from "@/components/auth/auth-modal"
@@ -43,21 +43,36 @@ export function Navbar() {
     setAuthModalOpen(true)
   }
 
+  const clearUserSession = useCallback(async (redirectTo: string = "/") => {
+    try {
+      // 先清除用户会话
+      logout()
+      
+      // 显示提示
+      toast({
+        title: "已退出登录",
+        description: "期待您的下次使用",
+      })
+
+      // 强制刷新页面并跳转
+      window.location.href = redirectTo
+    } catch (error) {
+      console.error("退出登录失败:", error)
+      toast({
+        title: "退出失败",
+        description: "请稍后重试",
+        variant: "destructive",
+      })
+    }
+  }, [logout, toast])
+
   const handleLogout = async () => {
-    logout()
-    toast({
-      title: "已退出登录",
-      description: "期待您的下次使用",
-    })
-    await router.replace("/auth")
-    window.location.reload()
+    await clearUserSession("/")
   }
 
   const handleSwitchAccount = async () => {
     setDropdownOpen(false)
-    logout()
-    await router.replace("/auth")
-    window.location.reload()
+    await clearUserSession("/auth")
   }
 
   const isAdmin = user?.role === "admin"
