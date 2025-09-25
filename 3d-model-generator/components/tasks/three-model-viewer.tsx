@@ -141,7 +141,15 @@ function Model({ url, taskId }: { url: string; taskId: string | null }) {
   return <primitive object={gltf.scene} />
 }
 
-export function ThreeModelViewer({ modelUrl, onClose }: { modelUrl: string; onClose?: () => void }) {
+export function ThreeModelViewer({
+  modelUrl,
+  onClose,
+  showFullscreen = true
+}: {
+  modelUrl: string
+  onClose?: () => void
+  showFullscreen?: boolean
+}) {
   const [isFullscreen, setIsFullscreen] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [backgroundColor, setBackgroundColor] = useState("#2d3748")
@@ -229,9 +237,11 @@ export function ThreeModelViewer({ modelUrl, onClose }: { modelUrl: string; onCl
             )}
           </div>
 
-          <Button variant="outline" size="icon" className="bg-white/50 backdrop-blur-sm" onClick={toggleFullscreen}>
-            {isFullscreen ? <Minimize2 className="h-4 w-4" /> : <Maximize2 className="h-4 w-4" />}
-          </Button>
+          {showFullscreen && (
+            <Button variant="outline" size="icon" className="bg-white/50 backdrop-blur-sm" onClick={toggleFullscreen}>
+              {isFullscreen ? <Minimize2 className="h-4 w-4" /> : <Maximize2 className="h-4 w-4" />}
+            </Button>
+          )}
           <Button variant="outline" size="icon" className="bg-white/50 backdrop-blur-sm" onClick={onClose}>
             <X className="h-4 w-4" />
           </Button>

@@ -1,3 +1,11 @@
+-- 先删除所有表，确保重新创建时没有外键冲突
+DROP TABLE IF EXISTS model_comments;
+DROP TABLE IF EXISTS model_likes;
+DROP TABLE IF EXISTS model_showcase;
+DROP TABLE IF EXISTS model_evaluations;
+DROP TABLE IF EXISTS generation_tasks;
+DROP TABLE IF EXISTS users;
+
 -- 创建数据库
 CREATE DATABASE IF NOT EXISTS model_generator DEFAULT CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;
 
@@ -5,82 +13,82 @@ USE model_generator;
 
 -- 创建用户表
 CREATE TABLE IF NOT EXISTS users (
-    id INT AUTO_INCREMENT PRIMARY KEY,
+    id BIGINT AUTO_INCREMENT PRIMARY KEY,
     username VARCHAR(50) NOT NULL UNIQUE,
-    password VARCHAR(100) NOT NULL,  -- 明文存储密码
+    password VARCHAR(100) NOT NULL,
     email VARCHAR(100) NOT NULL UNIQUE,
     is_admin BOOLEAN DEFAULT FALSE,
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-);
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
 
 -- 创建生成任务表
 CREATE TABLE IF NOT EXISTS generation_tasks (
-    id INT AUTO_INCREMENT PRIMARY KEY,
-    user_id INT NOT NULL,
-    task_id VARCHAR(100) NOT NULL UNIQUE,  -- Meshy API的任务ID
+    id BIGINT AUTO_INCREMENT PRIMARY KEY,
+    user_id BIGINT NOT NULL,
+    task_id VARCHAR(100) NOT NULL UNIQUE,
     task_type ENUM('text', 'image', 'multi_image') NOT NULL,
     prompt TEXT,
-    image_urls JSON,  -- 存储图片URL数组
-    status VARCHAR(20) NOT NULL DEFAULT 'pending',  -- pending, completed, failed
-    progress INT DEFAULT 0,  -- 任务进度，0-100
-    model_urls JSON,  -- 存储模型URL
-    texture_urls JSON,  -- 存储纹理URL
-    thumbnail_url TEXT,  -- 缩略图URL
-    task_error TEXT,  -- 错误信息
+    image_urls JSON,
+    status VARCHAR(20) NOT NULL DEFAULT 'pending',
+    progress INT DEFAULT 0,
+    model_urls JSON,
+    texture_urls JSON,
+    thumbnail_url TEXT,
+    task_error TEXT,
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-    started_at BIGINT NULL,  -- 毫秒时间戳
-    finished_at BIGINT NULL,  -- 毫秒时间戳
+    started_at BIGINT NULL,
+    finished_at BIGINT NULL,
     
     -- 精细化任务相关字段
-    preview_task_id VARCHAR(100) NULL,  -- 预览任务ID（用于精细化任务）
-    enable_pbr BOOLEAN DEFAULT FALSE,  -- 是否生成PBR贴图
-    texture_prompt TEXT,  -- 贴图生成的文本提示
-    texture_image_url TEXT,  -- 贴图生成的参考图片
-    ai_model VARCHAR(20),  -- AI模型版本
+    preview_task_id VARCHAR(100) NULL,
+    enable_pbr BOOLEAN DEFAULT FALSE,
+    texture_prompt TEXT,
+    texture_image_url TEXT,
+    ai_model VARCHAR(20),
 
     -- 评估相关字段
-    evaluation_status VARCHAR(20) DEFAULT 'pending',  -- pending, evaluated
-    topology_score DECIMAL(4,2) NULL,  -- 拓扑结构质量评分
-    geometry_score DECIMAL(4,2) NULL,  -- 几何准确度评分
-    rendering_score DECIMAL(4,2) NULL,  -- 渲染效率评分
-    evaluation_history JSON,  -- 评估历史记录
+    evaluation_status VARCHAR(20) DEFAULT 'pending',
+    topology_score DECIMAL(4,2) NULL,
+    geometry_score DECIMAL(4,2) NULL,
+    rendering_score DECIMAL(4,2) NULL,
+    evaluation_history JSON,
     
     FOREIGN KEY (user_id) REFERENCES users(id),
     FOREIGN KEY (preview_task_id) REFERENCES generation_tasks(task_id) ON DELETE CASCADE
-);
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
 
--- 添加索引（如果索引已存在会报错，可以忽略）
+-- 添加索引
 CREATE INDEX idx_task_id ON generation_tasks(task_id);
 CREATE INDEX idx_user_id ON generation_tasks(user_id);
 CREATE INDEX idx_preview_task_id ON generation_tasks(preview_task_id);
 
 -- 创建评估详情表
 CREATE TABLE IF NOT EXISTS model_evaluations (
-    id INT AUTO_INCREMENT PRIMARY KEY,
+    id BIGINT AUTO_INCREMENT PRIMARY KEY,
     task_id VARCHAR(255) NOT NULL,
     evaluation_date TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     
     -- 基础信息
     vertex_count INT NOT NULL,
     face_count INT NOT NULL,
-    surface_area DOUBLE NOT NULL,  -- 从FLOAT改为DOUBLE
+    surface_area DOUBLE NOT NULL,
     
     -- 法线分布
-    normal_consistency DOUBLE NOT NULL,  -- 从FLOAT改为DOUBLE
+    normal_consistency DOUBLE NOT NULL,
     normal_score FLOAT NOT NULL,
     
     -- 面片质量
-    aspect_ratio DOUBLE NOT NULL,  -- 从FLOAT改为DOUBLE
+    aspect_ratio DOUBLE NOT NULL,
     aspect_score FLOAT NOT NULL,
     
     -- 完整性
     is_watertight BOOLEAN NOT NULL,
     is_volume BOOLEAN NOT NULL,
-    boundary_edges_ratio DOUBLE NOT NULL,  -- 从FLOAT改为DOUBLE
+    boundary_edges_ratio DOUBLE NOT NULL,
     completeness_score FLOAT NOT NULL,
     
     -- 细节保留
-    vertex_density DOUBLE NOT NULL,  -- 从FLOAT改为DOUBLE
+    vertex_density DOUBLE NOT NULL,
     detail_score FLOAT NOT NULL,
     
     -- 最终得分
@@ -90,7 +98,56 @@ CREATE TABLE IF NOT EXISTS model_evaluations (
     evaluation_log TEXT,
     
     FOREIGN KEY (task_id) REFERENCES generation_tasks(task_id) ON DELETE CASCADE
-);
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+
+-- 创建模型展示表
+CREATE TABLE IF NOT EXISTS model_showcase (
+    id BIGINT PRIMARY KEY AUTO_INCREMENT,
+    user_id BIGINT NOT NULL,
+    title VARCHAR(255) NOT NULL,
+    description TEXT,
+    category VARCHAR(50) NOT NULL,  -- 模型分类：character/scene/prop/other
+    tags JSON,  -- 模型标签
+    preview_url VARCHAR(1024),  -- 预览图URL
+    model_url VARCHAR(1024) NOT NULL,  -- 模型文件URL
+    likes INT DEFAULT 0,  -- 点赞数
+    views INT DEFAULT 0,  -- 浏览量
+    status VARCHAR(20) DEFAULT 'public',  -- public/private
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+    FOREIGN KEY (user_id) REFERENCES users(id)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+
+-- 创建点赞表
+CREATE TABLE IF NOT EXISTS model_likes (
+    id BIGINT PRIMARY KEY AUTO_INCREMENT,
+    model_id BIGINT NOT NULL,
+    user_id BIGINT NOT NULL,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    FOREIGN KEY (model_id) REFERENCES model_showcase(id),
+    FOREIGN KEY (user_id) REFERENCES users(id),
+    UNIQUE KEY unique_like (model_id, user_id)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+
+-- 创建评论表
+CREATE TABLE IF NOT EXISTS model_comments (
+    id BIGINT PRIMARY KEY AUTO_INCREMENT,
+    model_id BIGINT NOT NULL,
+    user_id BIGINT NOT NULL,
+    content TEXT NOT NULL,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+    FOREIGN KEY (model_id) REFERENCES model_showcase(id),
+    FOREIGN KEY (user_id) REFERENCES users(id)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+
+-- 添加模型广场相关索引
+CREATE INDEX idx_model_showcase_user ON model_showcase(user_id);
+CREATE INDEX idx_model_showcase_category ON model_showcase(category);
+CREATE INDEX idx_model_showcase_status ON model_showcase(status);
+CREATE INDEX idx_model_showcase_created ON model_showcase(created_at);
+CREATE INDEX idx_model_likes_user ON model_likes(user_id);
+CREATE INDEX idx_model_comments_user ON model_comments(user_id);
 
 -- 插入默认管理员用户
 INSERT INTO users (username, password, email, is_admin)

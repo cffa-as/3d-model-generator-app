@@ -4,7 +4,16 @@ import { useState, useCallback } from "react"
 import { Button } from "@/components/ui/button"
 import { useAuth } from "@/hooks/use-auth"
 import { AuthModal } from "@/components/auth/auth-modal"
-import { Cable as Cube, User, LogOut, BarChart3, History, LayoutDashboard, Star } from "lucide-react"
+import { 
+  Cable as Cube, 
+  User, 
+  LogOut, 
+  BarChart3, 
+  History, 
+  LayoutDashboard, 
+  Star,
+  Store 
+} from "lucide-react"
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -20,7 +29,7 @@ import { cn } from "@/lib/utils"
 import React from "react"
 
 // 预加载常用路由
-const PREFETCH_ROUTES = ['/', '/dashboard', '/tasks', '/admin', '/admin/evaluation']
+const PREFETCH_ROUTES = ['/', '/dashboard', '/tasks', '/showcase', '/admin', '/admin/evaluation']
 
 export function Navbar() {
   const { user, logout } = useAuth()
@@ -84,12 +93,12 @@ export function Navbar() {
         href={href}
         prefetch={true}
         className={cn(
-          "flex items-center gap-2 text-foreground/80 hover:text-foreground transition-colors cursor-pointer",
-          "hover:bg-accent/50 px-3 py-2 rounded-md",
+          "flex items-center gap-1.5 text-foreground/80 hover:text-foreground transition-colors cursor-pointer",
+          "hover:bg-accent/50 px-2.5 py-2 rounded-md text-base",
           isActive && "text-foreground font-medium bg-accent/30"
         )}
       >
-        <Icon className="h-4 w-4" />
+        <Icon className="h-5 w-5" />
         {children}
       </Link>
     )
@@ -99,19 +108,20 @@ export function Navbar() {
     <>
       <nav className="glass-strong border-b border-border/50 sticky top-0 z-50">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-          <div className="flex justify-between items-center h-16">
+          <div className="flex justify-between items-center h-[4.5rem]">
             {/* Logo */}
             <Link href="/" className="flex items-center gap-2">
-                <Cube className="h-6 w-6 text-primary" />
-              <span className="font-semibold">创意3D建模</span>
+              <Cube className="h-7 w-7 text-primary" />
+              <span className="font-semibold text-lg">创意3D建模</span>
             </Link>
 
             {/* Navigation Links */}
             {user && (
-              <div className="hidden md:flex items-center gap-6">
+              <div className="hidden md:flex items-center gap-3">
                 <NavLink href="/" icon={Cube}>首页</NavLink>
                 <NavLink href="/dashboard" icon={LayoutDashboard}>工作台</NavLink>
                 <NavLink href="/tasks" icon={History}>任务历史</NavLink>
+                <NavLink href="/showcase" icon={Store}>模型广场</NavLink>
                 {isAdmin && (
                   <>
                     <NavLink href="/admin" icon={BarChart3}>管理面板</NavLink>
@@ -122,16 +132,17 @@ export function Navbar() {
             )}
 
             {/* User Actions */}
-            <div className="flex items-center gap-3">
+            <div className="flex items-center gap-2">
               {user ? (
-                <div className="flex items-center gap-3">
+                <div className="flex items-center gap-2">
                   {/* 桌面端显示退出按钮 */}
                   <Button
                     variant="ghost"
+                    size="default"
                     onClick={handleLogout}
-                    className="hidden md:flex items-center gap-2 text-foreground/80 hover:text-foreground"
+                    className="hidden md:flex items-center gap-1.5 text-foreground/80 hover:text-foreground h-11"
                   >
-                    <LogOut className="h-4 w-4" />
+                    <LogOut className="h-5 w-5" />
                     退出登录
                   </Button>
 
@@ -139,11 +150,11 @@ export function Navbar() {
                   <div className="relative">
                     <Button
                       variant="ghost"
-                      className="relative h-10 w-10 rounded-full"
+                      className="relative h-11 w-11 rounded-full"
                       onClick={() => setDropdownOpen(!dropdownOpen)}
                     >
-                      <Avatar className="h-10 w-10">
-                        <AvatarFallback className="bg-primary/20 text-primary">
+                      <Avatar className="h-11 w-11">
+                        <AvatarFallback className="bg-primary/20 text-primary text-lg">
                           {user.username.charAt(0).toUpperCase()}
                         </AvatarFallback>
                       </Avatar>
@@ -152,11 +163,11 @@ export function Navbar() {
                     {dropdownOpen && (
                       <div className="absolute right-0 mt-2 w-56 bg-popover rounded-md shadow-lg ring-1 ring-black ring-opacity-5">
                         <div className="p-2">
-                      <div className="flex flex-col space-y-1 leading-none">
-                        <p className="font-medium">{user.username}</p>
-                        <p className="text-xs text-muted-foreground">{user.email}</p>
-                      </div>
-                    </div>
+                          <div className="flex flex-col space-y-1 leading-none">
+                            <p className="font-medium">{user.username}</p>
+                            <p className="text-xs text-muted-foreground">{user.email}</p>
+                          </div>
+                        </div>
                         <div className="border-t border-border/50" />
                         <div className="p-1">
                           <Link
@@ -182,6 +193,14 @@ export function Navbar() {
                           >
                             <History className="mr-2 h-4 w-4" />
                             任务历史
+                          </Link>
+                          <Link
+                            href="/showcase"
+                            className="flex items-center px-3 py-2 text-sm hover:bg-accent rounded-sm"
+                            onClick={() => setDropdownOpen(false)}
+                          >
+                            <Store className="mr-2 h-4 w-4" />
+                            模型广场
                           </Link>
                           {isAdmin && (
                             <>
@@ -220,8 +239,8 @@ export function Navbar() {
                             }}
                             className="flex w-full items-center px-3 py-2 text-sm hover:bg-accent rounded-sm"
                           >
-                      <LogOut className="mr-2 h-4 w-4" />
-                      退出登录
+                            <LogOut className="mr-2 h-4 w-4" />
+                            退出登录
                           </button>
                         </div>
                       </div>
@@ -230,10 +249,12 @@ export function Navbar() {
                 </div>
               ) : (
                 <div className="flex items-center gap-2">
-                  <Button variant="ghost" onClick={() => handleAuthClick("login")}>
+                  <Button variant="ghost" size="default" onClick={() => handleAuthClick("login")} className="h-11">
                     登录
                   </Button>
-                  <Button onClick={() => handleAuthClick("register")}>注册</Button>
+                  <Button size="default" onClick={() => handleAuthClick("register")} className="h-11">
+                    注册
+                  </Button>
                 </div>
               )}
             </div>

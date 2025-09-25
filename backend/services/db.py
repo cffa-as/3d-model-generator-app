@@ -40,7 +40,7 @@ class Database:
 
     @classmethod
     async def execute(cls, query: str, args: tuple = ()) -> int:
-        """执行SQL语句"""
+        """执行SQL语句，返回影响的行数"""
         try:
             pool = await cls.get_pool()
             async with pool.acquire() as conn:

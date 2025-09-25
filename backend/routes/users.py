@@ -9,9 +9,9 @@ from models.user import UserCreate, Token, User
 # 配置日志
 logger = logging.getLogger(__name__)
 
-router = APIRouter()
+router = APIRouter(prefix="/users")  # 添加前缀
 db = Database()
-oauth2_scheme = OAuth2PasswordBearer(tokenUrl="token")
+oauth2_scheme = OAuth2PasswordBearer(tokenUrl="/api/users/token")  # 修改tokenUrl
 
 @router.get("/me", response_model=User)
 async def get_user_me(current_user: Dict = Depends(get_current_user)):
