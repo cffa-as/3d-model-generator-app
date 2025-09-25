@@ -427,8 +427,14 @@ async def add_model_comment(
             WHERE c.id = %s
         """
         new_comment = await db.fetch_one(comment_query, (comment_id,))
+        if not new_comment:
+            raise HTTPException(status_code=500, detail="无法获取新创建的评论")
 
-        return dict(new_comment)
+        # 转换为字典并格式化日期
+        comment_data = dict(new_comment)
+        comment_data["created_at"] = comment_data["created_at"].isoformat() if comment_data["created_at"] else None
+
+        return comment_data
 
     except Exception as e:
         logger.error("添加评论失败: %s", str(e))

@@ -182,7 +182,7 @@ async def create_generation_task(task: TaskCreate, current_user: dict = Depends(
 async def get_user_tasks(
     current_user: dict = Depends(get_current_user), 
     sync_status: bool = False,
-    limit: int = 50,  # 默认限制50条
+    limit: int = 10,  # 默认限制10条
     offset: int = 0   # 默认从0开始
 ) -> List[Dict[str, Any]]:
     """获取用户的任务列表"""
@@ -437,9 +437,9 @@ async def proxy_model_file(task_id: str, current_user: dict = Depends(get_curren
         query = """
             SELECT model_urls
             FROM generation_tasks
-            WHERE task_id = %s AND user_id = %s
+            WHERE task_id = %s
         """
-        task = await db.fetch_one(query, (task_id, current_user["user_id"]))
+        task = await db.fetch_one(query, (task_id,))
 
         if not task or not task["model_urls"]:
             raise HTTPException(status_code=404, detail="模型文件不存在")
@@ -479,5 +479,5 @@ async def proxy_model_file(task_id: str, current_user: dict = Depends(get_curren
             )
 
     except Exception as e:
-        logger.error("代理模型文件失败: %s", str(e))
+        logger.error(f"代理模型文件失败: {str(e)}")
         raise HTTPException(status_code=500, detail=str(e))

@@ -421,7 +421,6 @@ function ModelDetailContent({ modelId }: { modelId: string }) {
                             </div>
                             <div className="flex items-center gap-2">
                               <span className="text-xs text-muted-foreground">{formatDate(comment.created_at)}</span>
-                              {console.log('Comment data:', comment)}
                               {user && Number(user.id) === Number(comment.user_id) && (
                                 <Button
                                   variant="ghost"
