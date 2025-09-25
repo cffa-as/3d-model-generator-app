@@ -14,7 +14,6 @@ import Link from "next/link"
 import { cn } from "@/lib/utils"
 import { toast } from "@/components/ui/use-toast"
 import { TaskService } from "@/lib/tasks"
-import { Badge } from "@/components/ui/badge"
 import {
   AlertDialog,
   AlertDialogAction,
@@ -68,23 +67,26 @@ function TaskDetailPage() {
   const [isDeleting, setIsDeleting] = useState(false)
   const [showDeleteDialog, setShowDeleteDialog] = useState(false)
 
-  const loadTask = useCallback(async (showLoading = true) => {
-    try {
-      if (showLoading) {
-        setLoading(true)
+  const loadTask = useCallback(
+    async (showLoading = true) => {
+      try {
+        if (showLoading) {
+          setLoading(true)
+        }
+        setError("")
+        const taskData = await ApiService.getTaskStatus(taskId)
+        console.log("任务数据:", taskData) // 添加调试日志
+        setTask(taskData)
+      } catch (err) {
+        setError(err instanceof Error ? err.message : "加载任务失败")
+      } finally {
+        if (showLoading) {
+          setLoading(false)
+        }
       }
-      setError("")
-      const taskData = await ApiService.getTaskStatus(taskId)
-      console.log('任务数据:', taskData) // 添加调试日志
-      setTask(taskData)
-    } catch (err) {
-      setError(err instanceof Error ? err.message : "加载任务失败")
-    } finally {
-      if (showLoading) {
-        setLoading(false)
-      }
-    }
-  }, [taskId])
+    },
+    [taskId],
+  )
 
   const handleGenerateTexture = async () => {
     try {
@@ -129,8 +131,8 @@ function TaskDetailPage() {
   }
 
   const handleDelete = async () => {
-    if (!task) return;
-    
+    if (!task) return
+
     setIsDeleting(true)
     try {
       await ApiService.deleteTask(task.task_id)
@@ -150,13 +152,13 @@ function TaskDetailPage() {
   }
 
   const downloadModel = (url: string, filename: string) => {
-    const link = document.createElement('a');
-    link.href = url;
-    link.download = filename;
-    document.body.appendChild(link);
-    link.click();
-    document.body.removeChild(link);
-  };
+    const link = document.createElement("a")
+    link.href = url
+    link.download = filename
+    document.body.appendChild(link)
+    link.click()
+    document.body.removeChild(link)
+  }
 
   // 初始加载
   useEffect(() => {
@@ -167,8 +169,8 @@ function TaskDetailPage() {
 
   useEffect(() => {
     if (user && taskId) {
-          loadTask()
-        }
+      loadTask()
+    }
   }, [user, taskId, loadTask])
 
   // 轮询进度
@@ -264,7 +266,7 @@ function TaskDetailPage() {
     { key: "metallic", label: "Metallic", color: "bg-purple-100 text-purple-800" },
     { key: "normal", label: "Normal", color: "bg-green-100 text-green-800" },
     { key: "roughness", label: "Roughness", color: "bg-red-100 text-red-800" },
-  ];
+  ]
 
   return (
     <div className="min-h-screen">
@@ -353,20 +355,21 @@ function TaskDetailPage() {
                 </CardHeader>
                 <CardContent>
                   <div className="flex flex-wrap gap-2">
-                    {Object.entries(task.model_urls).map(([format, url]) => (
-                      url && (
-                        <Button
-                          key={format}
-                          variant="outline"
-                          size="sm"
-                          onClick={() => downloadModel(url, `model.${format}`)}
-                          className="text-xs hover:bg-blue-50 hover:text-blue-600 cursor-pointer transition-colors"
-                        >
-                          <Download className="h-3 w-3 mr-1" />
-                          {format.toUpperCase()}
-                        </Button>
-                      )
-                    ))}
+                    {Object.entries(task.model_urls).map(
+                      ([format, url]) =>
+                        url && (
+                          <Button
+                            key={format}
+                            variant="outline"
+                            size="sm"
+                            onClick={() => downloadModel(url, `model.${format}`)}
+                            className="text-xs hover:bg-blue-50 hover:text-blue-600 cursor-pointer transition-colors"
+                          >
+                            <Download className="h-3 w-3 mr-1" />
+                            {format.toUpperCase()}
+                          </Button>
+                        ),
+                    )}
                   </div>
                 </CardContent>
               </Card>
@@ -381,7 +384,7 @@ function TaskDetailPage() {
                 <CardContent>
                   <div className="flex flex-wrap gap-2">
                     {textureTypes.map(({ key, label, color }) => {
-                      const url = task.texture_urls?.[0]?.[key as keyof typeof task.texture_urls[0]]
+                      const url = task.texture_urls?.[0]?.[key as keyof (typeof task.texture_urls)[0]]
                       if (!url) return null
 
                       return (
@@ -400,10 +403,13 @@ function TaskDetailPage() {
                   </div>
 
                   {/* 贴图预览 */}
-                  {activeTexture && task.texture_urls?.[0]?.[activeTexture as keyof typeof task.texture_urls[0]] && (
+                  {activeTexture && task.texture_urls?.[0]?.[activeTexture as keyof (typeof task.texture_urls)[0]] && (
                     <div className="mt-3">
                       <img
-                        src={task.texture_urls[0][activeTexture as keyof typeof task.texture_urls[0]] || "/placeholder.svg"}
+                        src={
+                          task.texture_urls[0][activeTexture as keyof (typeof task.texture_urls)[0]] ||
+                          "/placeholder.svg"
+                        }
                         alt={`${activeTexture} 贴图`}
                         className="w-full h-32 object-cover rounded-lg border border-border/50"
                       />
@@ -425,25 +431,23 @@ function TaskDetailPage() {
                 {isPolling ? "自动更新中..." : "刷新状态"}
               </Button>
 
-              {task.status === "completed" && !task.texture_urls && task.task_type === "text" && !task.preview_task_id && (
-                <Button
-                  variant="default"
-                  onClick={handleGenerateTexture}
-                  disabled={isGeneratingTexture}
-                  className="w-full"
-                >
-                  <Brush className="h-4 w-4 mr-2" />
-                  {isGeneratingTexture ? "生成贴图中..." : "生成贴图"}
-                </Button>
-              )}
+              {task.status === "completed" &&
+                !task.texture_urls &&
+                task.task_type === "text" &&
+                !task.preview_task_id && (
+                  <Button
+                    variant="default"
+                    onClick={handleGenerateTexture}
+                    disabled={isGeneratingTexture}
+                    className="w-full"
+                  >
+                    <Brush className="h-4 w-4 mr-2" />
+                    {isGeneratingTexture ? "生成贴图中..." : "生成贴图"}
+                  </Button>
+                )}
 
               {task.status === "completed" && task.task_type === "text" && !task.preview_task_id && (
-                <Button
-                  variant="default"
-                  onClick={handleRefine}
-                  disabled={isRefining}
-                  className="w-full"
-                >
+                <Button variant="default" onClick={handleRefine} disabled={isRefining} className="w-full">
                   <Wand2 className="h-4 w-4 mr-2" />
                   {isRefining ? "精细化生成中..." : "精细化生成"}
                 </Button>
@@ -474,13 +478,11 @@ function TaskDetailPage() {
                   <AlertDialogHeader>
                     <AlertDialogTitle>确认删除任务？</AlertDialogTitle>
                     <AlertDialogDescription>
-                      {task.preview_task_id ? (
-                        "此操作将删除此精细化任务。"
-                      ) : task.task_type === "text" ? (
-                        "此操作将删除此预览任务及其相关的精细化任务（如果有）。"
-                      ) : (
-                        "此操作将永久删除此任务。"
-                      )}
+                      {task.preview_task_id
+                        ? "此操作将删除此精细化任务。"
+                        : task.task_type === "text"
+                          ? "此操作将删除此预览任务及其相关的精细化任务（如果有）。"
+                          : "此操作将永久删除此任务。"}
                       此操作无法撤销。
                     </AlertDialogDescription>
                   </AlertDialogHeader>
@@ -491,7 +493,7 @@ function TaskDetailPage() {
                       disabled={isDeleting}
                       className={cn(
                         "bg-destructive text-destructive-foreground hover:bg-destructive/90",
-                        isDeleting && "opacity-50 cursor-not-allowed"
+                        isDeleting && "opacity-50 cursor-not-allowed",
                       )}
                     >
                       {isDeleting ? "删除中..." : "确认删除"}

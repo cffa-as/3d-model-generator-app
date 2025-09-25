@@ -144,7 +144,7 @@ function Model({ url, taskId }: { url: string; taskId: string | null }) {
 export function ThreeModelViewer({
   modelUrl,
   onClose,
-  showFullscreen = true
+  showFullscreen = true,
 }: {
   modelUrl: string
   onClose?: () => void

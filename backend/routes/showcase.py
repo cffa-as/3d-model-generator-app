@@ -143,19 +143,6 @@ async def get_model_detail(
         # 解析JSON字段
         model_dict["tags"] = json.loads(model_dict["tags"]) if model_dict["tags"] else []
 
-        # 获取评论
-        comments_query = """
-            SELECT 
-                c.*,
-                u.username
-            FROM model_comments c
-            LEFT JOIN users u ON c.user_id = u.id
-            WHERE c.model_id = %s
-            ORDER BY c.created_at DESC
-        """
-        comments = await db.fetch_all(comments_query, (model_id,))
-        model_dict["comments"] = [dict(comment) for comment in comments]
-
         # 检查当前用户是否已点赞
         if current_user:
             like_query = """
@@ -168,7 +155,26 @@ async def get_model_detail(
         else:
             model_dict["is_liked"] = False
 
-        return model_dict
+        # 获取评论
+        comments_query = """
+            SELECT 
+                c.id,
+                c.user_id,
+                c.content,
+                c.created_at,
+                u.username
+            FROM model_comments c
+            LEFT JOIN users u ON c.user_id = u.id
+            WHERE c.model_id = %s
+            ORDER BY c.created_at DESC
+        """
+        comments = await db.fetch_all(comments_query, (model_id,))
+        
+        # 返回结构调整，将model和comments分开
+        return {
+            "model": model_dict,
+            "comments": [dict(comment) for comment in comments]
+        }
 
     except Exception as e:
         logger.error("获取模型详情失败: %s", str(e))
@@ -408,10 +414,21 @@ async def add_model_comment(
         comment_id = result["id"]
         logger.info("评论创建成功，ID: %s", comment_id)
 
-        return {
-            "id": comment_id,
-            "message": "评论添加成功"
-        }
+        # 获取完整的评论数据
+        comment_query = """
+            SELECT 
+                c.id,
+                c.user_id,
+                c.content,
+                c.created_at,
+                u.username
+            FROM model_comments c
+            LEFT JOIN users u ON c.user_id = u.id
+            WHERE c.id = %s
+        """
+        new_comment = await db.fetch_one(comment_query, (comment_id,))
+
+        return dict(new_comment)
 
     except Exception as e:
         logger.error("添加评论失败: %s", str(e))
@@ -449,4 +466,34 @@ async def delete_model_comment(
         raise
     except Exception as e:
         logger.error("删除评论失败: %s", str(e), exc_info=True)
+        raise HTTPException(status_code=500, detail=str(e)) 
+
+@router.get("/models/{model_id}/comments")
+async def get_model_comments(
+    model_id: int,
+    current_user: Optional[dict] = Depends(get_current_user)
+) -> Dict[str, Any]:
+    """获取模型评论列表"""
+    try:
+        # 获取评论
+        comments_query = """
+            SELECT 
+                c.id,
+                c.user_id,
+                c.content,
+                c.created_at,
+                u.username
+            FROM model_comments c
+            LEFT JOIN users u ON c.user_id = u.id
+            WHERE c.model_id = %s
+            ORDER BY c.created_at DESC
+        """
+        comments = await db.fetch_all(comments_query, (model_id,))
+        
+        return {
+            "comments": [dict(comment) for comment in comments]
+        }
+
+    except Exception as e:
+        logger.error("获取评论列表失败: %s", str(e))
         raise HTTPException(status_code=500, detail=str(e)) 

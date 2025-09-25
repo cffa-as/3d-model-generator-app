@@ -317,7 +317,7 @@ function ShowcasePageContent() {
                   <div className="space-y-2">
                     <div className="flex items-start justify-between">
                       <h3 className="font-semibold truncate">{model.title}</h3>
-                      <Button variant="ghost" size="sm" onClick={() => handleModelClick(model)}>
+                      <Button variant="ghost" size="sm" onClick={() => router.push(`/showcase/${model.id}`)}>
                         查看
                       </Button>
                     </div>
@@ -359,101 +359,6 @@ function ShowcasePageContent() {
             </div>
           )}
         </div>
-
-        {/* 模型预览对话框 */}
-        <Dialog
-          open={modelDialog}
-          onOpenChange={(open) => {
-            setModelDialog(open)
-            if (!open) {
-              setSelectedModel(null)
-              setComments([])
-              setNewComment("")
-            }
-          }}
-        >
-          <DialogContent className="max-w-[90vw] w-[1200px] h-[80vh] p-6">
-            <DialogHeader className="pb-4">
-              <DialogTitle className="text-xl">{selectedModel?.title}</DialogTitle>
-            </DialogHeader>
-            <div className="flex flex-col h-full space-y-4 overflow-hidden">
-              {/* 3D模型预览 */}
-              <div className="flex-1 min-h-0 bg-muted rounded-lg overflow-hidden">
-                {selectedModel && (
-                  <ThreeModelViewer
-                    modelUrl={selectedModel.model_url}
-                    onClose={() => setModelDialog(false)}
-                    showFullscreen={false}
-                  />
-                )}
-              </div>
-
-              {/* 模型信息和评论区 */}
-              <div className="flex-none h-[200px] overflow-y-auto space-y-4">
-                {/* 模型信息 */}
-                <div className="space-y-2">
-                  <p className="text-muted-foreground">{selectedModel?.description}</p>
-                  <div className="flex items-center gap-4">
-                    <Button
-                      variant="ghost"
-                      size="sm"
-                      onClick={() => selectedModel && handleLike(selectedModel)}
-                    >
-                      <Heart
-                        className={`h-5 w-5 mr-2 ${
-                          selectedModel?.is_liked ? "fill-red-500 text-red-500" : ""
-                        }`}
-                      />
-                      {selectedModel?.likes || 0}
-                    </Button>
-                    <Button variant="ghost" size="sm">
-                      <Share2 className="h-5 w-5 mr-2" />
-                      分享
-                    </Button>
-                  </div>
-                  <div className="flex flex-wrap gap-2">
-                    {selectedModel?.tags.map((tag) => (
-                      <Badge key={tag} variant="secondary">
-                        {tag}
-                      </Badge>
-                    ))}
-                  </div>
-                </div>
-
-                {/* 评论区 */}
-                <div className="space-y-4">
-                  <h3 className="font-semibold">评论 ({comments.length})</h3>
-                  {user ? (
-                    <div className="flex gap-2">
-                      <Input
-                        placeholder="写下你的评论..."
-                        value={newComment}
-                        onChange={(e) => setNewComment(e.target.value)}
-                        onKeyPress={(e) => e.key === "Enter" && handleComment()}
-                      />
-                      <Button onClick={handleComment}>发布</Button>
-                    </div>
-                  ) : (
-                    <p className="text-sm text-muted-foreground">登录后即可评论</p>
-                  )}
-                  <div className="space-y-4 max-h-[300px] overflow-y-auto">
-                    {comments.map((comment) => (
-                      <div key={comment.id} className="space-y-1">
-                        <div className="flex items-center justify-between">
-                          <span className="font-medium">{comment.username}</span>
-                          <span className="text-sm text-muted-foreground">
-                            {formatDate(comment.created_at)}
-                          </span>
-                        </div>
-                        <p className="text-sm">{comment.content}</p>
-                      </div>
-                    ))}
-                  </div>
-                </div>
-              </div>
-            </div>
-          </DialogContent>
-        </Dialog>
 
         <UploadModelDialog
           open={uploadDialog}
