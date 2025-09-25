@@ -239,22 +239,20 @@ function ShowcasePageContent() {
       <Navbar />
 
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
-        <div className="mb-8">
-          <h1 className="text-3xl font-bold mb-2">模型广场</h1>
-          <p className="text-muted-foreground">发现和分享精彩的3D模型作品</p>
+        <div className="flex items-center justify-between mb-4">
+          <div>
+            <h1 className="text-3xl font-bold">模型广场</h1>
+            <p className="text-muted-foreground mt-1">发现和分享精彩的3D模型作品</p>
+          </div>
+          {user && (
+            <Button onClick={() => setUploadDialog(true)}>
+              <Plus className="h-4 w-4 mr-2" />
+              分享模型
+            </Button>
+          )}
         </div>
 
         <div className="space-y-6">
-          <div className="flex items-center justify-between">
-            <div></div>
-            {user && (
-              <Button onClick={() => setUploadDialog(true)}>
-                <Plus className="h-4 w-4 mr-2" />
-                分享模型
-              </Button>
-            )}
-          </div>
-
           <Card className="glass">
             <CardContent className="p-4">
               <div className="flex flex-col md:flex-row gap-4">
