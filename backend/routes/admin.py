@@ -553,22 +553,58 @@ async def export_evaluation_report(current_user: dict = Depends(get_admin_user))
 
         # 写入数据
         for task in tasks:
-            evaluation_history = json.loads(task['evaluation_history']) if task['evaluation_history'] else []
-            latest_evaluation = evaluation_history[-1] if evaluation_history else None
-            
-            writer.writerow([
-                task['task_id'],
-                task['username'],
-                task['task_type'],
-                task['created_at'].strftime('%Y-%m-%d %H:%M:%S'),
-                '已评估' if task['evaluation_status'] == 'evaluated' else '待评估',
-                f"{task['topology_score']:.1f}" if task['topology_score'] else '-',
-                f"{task['geometry_score']:.1f}" if task['geometry_score'] else '-',
-                f"{task['rendering_score']:.1f}" if task['rendering_score'] else '-',
-                f"{((task['topology_score'] or 0) + (task['geometry_score'] or 0) + (task['rendering_score'] or 0)) / 3:.1f}" if task['evaluation_status'] == 'evaluated' else '-',
-                latest_evaluation['date'].split('T')[0] if latest_evaluation else '-',
-                latest_evaluation['evaluator'] if latest_evaluation else '-'
-            ])
+            try:
+                # 解析评估历史
+                evaluation_history = []
+                if task['evaluation_history']:
+                    if isinstance(task['evaluation_history'], str):
+                        evaluation_history = json.loads(task['evaluation_history'])
+                    else:
+                        evaluation_history = task['evaluation_history']
+                
+                latest_evaluation = evaluation_history[-1] if evaluation_history else None
+                
+                # 计算平均分
+                scores = [task['topology_score'], task['geometry_score'], task['rendering_score']]
+                scores = [s for s in scores if s is not None]  # 过滤掉None值
+                avg_score = sum(scores) / len(scores) if scores else None
+                
+                # 从latest_evaluation中安全地获取数据
+                eval_date = '-'
+                eval_person = '-'
+                if latest_evaluation:
+                    if isinstance(latest_evaluation, str):
+                        latest_eval_dict = json.loads(latest_evaluation)
+                        eval_date = latest_eval_dict.get('date', '').split('T')[0]
+                        eval_person = latest_eval_dict.get('evaluator', '-')
+                    else:
+                        eval_date = latest_evaluation.get('date', '').split('T')[0]
+                        eval_person = latest_evaluation.get('evaluator', '-')
+                
+                writer.writerow([
+                    task['task_id'],
+                    task['username'],
+                    task['task_type'],
+                    task['created_at'].strftime('%Y-%m-%d %H:%M:%S'),
+                    '已评估' if task['evaluation_status'] == 'evaluated' else '待评估',
+                    f"{task['topology_score']:.1f}" if task['topology_score'] is not None else '-',
+                    f"{task['geometry_score']:.1f}" if task['geometry_score'] is not None else '-',
+                    f"{task['rendering_score']:.1f}" if task['rendering_score'] is not None else '-',
+                    f"{avg_score:.1f}" if avg_score is not None else '-',
+                    eval_date,
+                    eval_person
+                ])
+            except Exception as e:
+                logger.error(f"处理任务数据时出错: {str(e)}, task_id: {task.get('task_id', 'unknown')}")
+                # 写入一行带有错误标记的数据
+                writer.writerow([
+                    task.get('task_id', 'ERROR'),
+                    task.get('username', '-'),
+                    task.get('task_type', '-'),
+                    task.get('created_at', '-'),
+                    '数据错误',
+                    '-', '-', '-', '-', '-', '-'
+                ])
 
         # 返回CSV文件
         output.seek(0)
