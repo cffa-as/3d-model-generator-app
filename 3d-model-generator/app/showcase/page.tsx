@@ -48,6 +48,7 @@ function ShowcasePageContent() {
   const router = useRouter()
   const { toast } = useToast()
   const [models, setModels] = useState<ShowcaseModel[]>([])
+  const [filteredModels, setFilteredModels] = useState<ShowcaseModel[]>([])
   const [loading, setLoading] = useState(true)
   const [selectedModel, setSelectedModel] = useState<ShowcaseModel | null>(null)
   const [modelDialog, setModelDialog] = useState(false)
@@ -76,6 +77,20 @@ function ShowcasePageContent() {
       loadModels()
     }
   }, [user, categoryFilter, sortBy, page])
+
+  // 搜索过滤效果
+  useEffect(() => {
+    if (searchTerm.trim() === "") {
+      setFilteredModels(models)
+    } else {
+      const searchLower = searchTerm.toLowerCase()
+      const filtered = models.filter(model => 
+        model.title.toLowerCase().includes(searchLower) ||
+        model.description.toLowerCase().includes(searchLower)
+      )
+      setFilteredModels(filtered)
+    }
+  }, [searchTerm, models])
 
   if (isLoading) {
     return (
@@ -108,7 +123,9 @@ function ShowcasePageContent() {
         headers: ApiService.getAuthHeaders(),
       })
       const data = await response.json()
-      setModels((prev) => (page === 1 ? data.models : [...prev, ...data.models]))
+      const newModels = page === 1 ? data.models : [...models, ...data.models]
+      setModels(newModels)
+      setFilteredModels(newModels)  // 更新过滤后的模型列表
       setTotalPages(Math.ceil(data.total / 20))
       setHasMore(page < Math.ceil(data.total / 20))
     } catch (error) {
@@ -289,7 +306,7 @@ function ShowcasePageContent() {
           </Card>
 
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
-            {models.map((model) => (
+            {filteredModels.map((model) => (
               <Card key={model.id} className="overflow-hidden hover:shadow-lg transition-shadow">
                 <div className="aspect-square relative overflow-hidden bg-muted">
                   {model.preview_url ? (
@@ -346,7 +363,7 @@ function ShowcasePageContent() {
             ))}
           </div>
 
-          {hasMore && (
+          {hasMore && searchTerm.trim() === "" && (
             <div className="text-center">
               <Button
                 variant="outline"
