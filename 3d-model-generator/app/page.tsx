@@ -7,7 +7,7 @@ import { Navbar } from "@/components/layout/navbar"
 import { AuthModal } from "@/components/auth/auth-modal"
 import { useAuth } from "@/hooks/use-auth"
 import { AuthProvider } from "@/hooks/use-auth"
-import { Cable as Cube, Sparkles, ImageIcon, Type, Images, Download, ArrowRight, Play } from "lucide-react"
+import { Cable as Cube, Sparkles, ImageIcon, Type, Images, Download, ArrowRight } from "lucide-react"
 import Link from "next/link"
 import { Badge } from "@/components/ui/badge"
 import { useRouter } from "next/navigation"
@@ -90,18 +90,6 @@ function HomePage() {
                       <ArrowRight className="ml-2 h-5 w-5" />
                     </Link>
                   </Button>
-                  <Button
-                    variant="outline"
-                    size="lg"
-                    className="text-lg px-8 py-6 glass bg-transparent"
-                    onClick={() => {
-                      setAuthMode("login")
-                      setAuthModalOpen(true)
-                    }}
-                  >
-                    <Play className="mr-2 h-5 w-5" />
-                    观看演示
-                  </Button>
                 </>
               ) : (
                 <>
@@ -115,18 +103,6 @@ function HomePage() {
                   >
                     立即开始
                     <ArrowRight className="ml-2 h-5 w-5" />
-                  </Button>
-                  <Button
-                    variant="outline"
-                    size="lg"
-                    className="text-lg px-8 py-6 glass bg-transparent"
-                    onClick={() => {
-                      setAuthMode("login")
-                      setAuthModalOpen(true)
-                    }}
-                  >
-                    <Play className="mr-2 h-5 w-5" />
-                    观看演示
                   </Button>
                 </>
               )}
