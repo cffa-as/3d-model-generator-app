@@ -3,10 +3,12 @@
   "version": "0.1.0",
   "private": true,
   "scripts": {
-    "build": "next build",
-    "dev": "next dev",
+    "build": "cross-env NEXT_TELEMETRY_DISABLED=1 next build",
+    "build:analyze": "cross-env ANALYZE=true next build",
+    "dev": "cross-env NEXT_TELEMETRY_DISABLED=1 next dev",
+    "start": "cross-env NEXT_TELEMETRY_DISABLED=1 next start",
     "lint": "next lint",
-    "start": "next start"
+    "clean": "rimraf .next"
   },
   "dependencies": {
     "@hookform/resolvers": "^3.10.0",
@@ -70,6 +72,9 @@
     "@types/node": "^22",
     "@types/react": "^18",
     "@types/react-dom": "^18",
+    "@next/bundle-analyzer": "^14.2.16",
+    "cross-env": "^7.0.3",
+    "rimraf": "^5.0.1",
     "postcss": "^8.5",
     "tailwindcss": "^4.1.9",
     "tw-animate-css": "1.3.3",

@@ -156,6 +156,7 @@ export function ModelEvaluation() {
   const [evaluationDialog, setEvaluationDialog] = useState(false)
   const [evaluationDetails, setEvaluationDetails] = useState<EvaluationDetails | null>(null)
   const [showEvaluationDialog, setShowEvaluationDialog] = useState(false)
+  const [evaluatingModels, setEvaluatingModels] = useState<Set<string>>(new Set())
 
   // 筛选状态
   const [searchTerm, setSearchTerm] = useState("")
@@ -187,20 +188,22 @@ export function ModelEvaluation() {
       })
       const tasksData = await response.json()
       
-      // 转换任务数据为评估模型格式
-      const modelData = tasksData.map((task: any) => ({
-        id: task.id,
-        user_id: task.user_id,
-        username: task.username,
-        task_id: task.task_id,
-        task_type: task.task_type,
-        created_at: task.created_at,
-        status: task.evaluation_status || "pending",
-        topology_score: task.topology_score,
-        geometry_score: task.geometry_score,
-        rendering_score: task.rendering_score,
-        evaluation_history: task.evaluation_history,
-      }))
+      // 转换任务数据为评估模型格式，只包含已完成的任务
+      const modelData = tasksData
+        .filter((task: any) => task.status === "completed") // 只保留已完成的任务
+        .map((task: any) => ({
+          id: task.id,
+          user_id: task.user_id,
+          username: task.username,
+          task_id: task.task_id,
+          task_type: task.task_type,
+          created_at: task.created_at,
+          status: task.evaluation_status || "pending",
+          topology_score: task.topology_score,
+          geometry_score: task.geometry_score,
+          rendering_score: task.rendering_score,
+          evaluation_history: task.evaluation_history,
+        }))
 
       setModels(modelData)
       
@@ -269,7 +272,22 @@ export function ModelEvaluation() {
 
   const handleAutoEvaluate = async (model: ModelEvaluation) => {
     try {
+      if (evaluatingModels.has(model.task_id)) {
+        toast({
+          title: "正在评估中",
+          description: "请等待当前评估完成",
+        })
+        return
+      }
+
       setSelectedModel(model)
+      setEvaluatingModels(prev => new Set(prev).add(model.task_id))
+      
+      // 显示评估开始的 toast
+      toast({
+        title: "开始评估",
+        description: "正在下载模型文件并进行评估...",
+      })
       
       // 调用评估接口
       const response = await fetch(`${API_BASE_URL}/admin/tasks/${model.task_id}/evaluate`, {
@@ -339,13 +357,19 @@ export function ModelEvaluation() {
 
       toast({
         title: "评估完成",
-        description: "模型评估已完成",
+        description: `模型评分：拓扑 ${results.topology_score.toFixed(1)}，几何 ${results.geometry_score.toFixed(1)}，渲染 ${results.rendering_score.toFixed(1)}`,
       })
     } catch (error) {
       toast({
         title: "评估失败",
-        description: "自动评估失败，请稍后重试",
+        description: error instanceof Error ? error.message : "自动评估失败，请稍后重试",
         variant: "destructive",
+      })
+    } finally {
+      setEvaluatingModels(prev => {
+        const next = new Set(prev)
+        next.delete(model.task_id)
+        return next
       })
     }
   }
@@ -696,7 +720,7 @@ export function ModelEvaluation() {
                   </SelectTrigger>
                   <SelectContent>
                     <SelectItem value="all">全部状态</SelectItem>
-                    <SelectItem value="pending">待评估</SelectItem>
+                    <SelectItem value="pending">未评估</SelectItem>
                     <SelectItem value="evaluated">已评估</SelectItem>
                   </SelectContent>
                 </Select>
@@ -719,7 +743,7 @@ export function ModelEvaluation() {
           <Card className="glass">
             <CardHeader>
               <CardTitle className="flex items-center justify-between">
-                模型评估列表
+                已完成模型列表
                 <Badge variant="secondary">{filteredModels.length} 个模型</Badge>
               </CardTitle>
             </CardHeader>
@@ -785,9 +809,19 @@ export function ModelEvaluation() {
                           variant="outline" 
                           size="sm" 
                           onClick={() => handleAutoEvaluate(model)}
+                          disabled={evaluatingModels.has(model.task_id)}
                         >
-                          <Wand2 className="h-4 w-4 mr-1" />
-                          评估
+                          {evaluatingModels.has(model.task_id) ? (
+                            <>
+                              <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-primary mr-2" />
+                              评估中
+                            </>
+                          ) : (
+                            <>
+                              <Wand2 className="h-4 w-4 mr-1" />
+                              评估
+                            </>
+                          )}
                         </Button>
                       </div>
                     </div>

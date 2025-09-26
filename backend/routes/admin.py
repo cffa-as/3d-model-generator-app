@@ -12,6 +12,7 @@ import hashlib
 from datetime import datetime
 import io
 import csv
+import httpx
 
 # 配置日志
 logger = logging.getLogger(__name__)
@@ -114,47 +115,55 @@ async def evaluate_task(task_id: str, current_user: dict = Depends(get_admin_use
     try:
         # 检查任务是否已经在评估中
         query = """
-            SELECT evaluation_status
+            SELECT evaluation_status, model_urls
             FROM generation_tasks
             WHERE task_id = %s
             FOR UPDATE SKIP LOCKED
         """
-        task_status = await db.fetch_one(query, (task_id,))
+        task = await db.fetch_one(query, (task_id,))
         
-        if not task_status:
+        if not task:
+            logger.error(f"任务不存在: {task_id}")
             raise HTTPException(status_code=404, detail="任务不存在")
             
-        if task_status['evaluation_status'] == 'evaluating':
+        if task['evaluation_status'] == 'evaluating':
+            logger.warning(f"任务正在评估中: {task_id}")
             raise HTTPException(status_code=409, detail="任务正在评估中")
+
+        # 检查模型文件是否存在
+        model_urls = json.loads(task["model_urls"]) if task["model_urls"] else {}
+        glb_url = model_urls.get("glb")
+        if not glb_url:
+            logger.error(f"模型文件不存在: {task_id}")
+            raise HTTPException(status_code=400, detail="模型文件不存在")
+
+        # 获取缓存的模型文件路径
+        cache_dir = Path("cache/models")
+        cache_dir.mkdir(parents=True, exist_ok=True)
+        cache_key = hashlib.md5(glb_url.encode()).hexdigest()
+        model_path = cache_dir / f"{cache_key}.glb"
+
+        # 如果缓存不存在，下载并缓存
+        if not model_path.exists():
+            logger.info(f"开始下载模型文件: {task_id}")
+            try:
+                async with httpx.AsyncClient() as client:
+                    response = await client.get(glb_url)
+                    if response.status_code != 200:
+                        raise HTTPException(status_code=response.status_code, detail="获取模型文件失败")
+
+                    # 保存到缓存
+                    model_path.write_bytes(response.content)
+                    logger.info(f"模型文件已缓存: {task_id}")
+            except Exception as e:
+                logger.error(f"下载模型文件失败: {str(e)}")
+                raise HTTPException(status_code=500, detail=f"下载模型文件失败: {str(e)}")
             
         # 更新任务状态为评估中
         await db.execute(
             "UPDATE generation_tasks SET evaluation_status = 'evaluating' WHERE task_id = %s",
             (task_id,)
         )
-
-        # 获取任务信息
-        query = """
-            SELECT model_urls
-            FROM generation_tasks
-            WHERE task_id = %s
-        """
-        task = await db.fetch_one(query, (task_id,))
-        if not task:
-            raise HTTPException(status_code=404, detail="任务不存在")
-
-        model_urls = json.loads(task["model_urls"]) if task["model_urls"] else {}
-        glb_url = model_urls.get("glb")
-        if not glb_url:
-            raise HTTPException(status_code=400, detail="模型文件不存在")
-
-        # 获取缓存的模型文件路径
-        cache_dir = Path("cache/models")
-        cache_key = hashlib.md5(glb_url.encode()).hexdigest()
-        model_path = cache_dir / f"{cache_key}.glb"
-
-        if not model_path.exists():
-            raise HTTPException(status_code=400, detail="模型文件未缓存")
 
         # 创建日志捕获器
         log_capture = io.StringIO()
@@ -485,13 +494,17 @@ async def evaluate_task(task_id: str, current_user: dict = Depends(get_admin_use
                 )
 
     except Exception as e:
-        logger.error("评估任务失败: %s", str(e))
+        error_msg = f"评估任务失败: {str(e)}"
+        logger.exception(error_msg)  # 这会记录完整的堆栈跟踪
         # 确保状态被重置
-        await db.execute(
-            "UPDATE generation_tasks SET evaluation_status = 'pending' WHERE task_id = %s",
-            (task_id,)
-        )
-        raise HTTPException(status_code=500, detail=str(e))
+        try:
+            await db.execute(
+                "UPDATE generation_tasks SET evaluation_status = 'pending' WHERE task_id = %s",
+                (task_id,)
+            )
+        except Exception as db_error:
+            logger.error(f"重置任务状态失败: {str(db_error)}")
+        raise HTTPException(status_code=500, detail=error_msg)
 
 @router.get("/tasks/{task_id}/evaluation")
 async def get_evaluation_details(task_id: str, current_user: dict = Depends(get_admin_user)) -> Dict[str, Any]:
