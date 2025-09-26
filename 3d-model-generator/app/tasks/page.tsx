@@ -67,6 +67,7 @@ function TasksPage() {
   const [loading, setLoading] = useState(true)
   const [searchTerm, setSearchTerm] = useState("")
   const [statusFilter, setStatusFilter] = useState<string>("all")
+  const [typeFilter, setTypeFilter] = useState<string>("all")
   const { toast } = useToast()
   const [deletingTaskId, setDeletingTaskId] = useState<string | null>(null)
   const [showDeleteDialog, setShowDeleteDialog] = useState(false)
@@ -145,7 +146,7 @@ function TasksPage() {
 
   useEffect(() => {
     filterTasks()
-  }, [tasks, searchTerm, statusFilter])
+  }, [tasks, searchTerm, statusFilter, typeFilter])
 
   // 添加定期刷新机制
   useEffect(() => {
@@ -164,6 +165,19 @@ function TasksPage() {
     // 状态筛选
     if (statusFilter !== "all") {
       filtered = filtered.filter((task) => task.status === statusFilter)
+    }
+
+    // 类型筛选
+    if (typeFilter !== "all") {
+      filtered = filtered.filter((task) => {
+        if (typeFilter === "text_preview") {
+          return task.task_type === "text" && !task.preview_task_id
+        }
+        if (typeFilter === "text_refined") {
+          return task.task_type === "text" && task.preview_task_id
+        }
+        return task.task_type === typeFilter
+      })
     }
 
     // 搜索筛选
@@ -287,14 +301,14 @@ function TasksPage() {
 
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
         {/* 页面标题 */}
-        <div className="mb-8">
+        <div className="mb-4">
           <h1 className="text-3xl font-bold mb-2">任务历史</h1>
           <p className="text-muted-foreground">查看和管理您的3D模型生成任务</p>
         </div>
 
         {/* 筛选和搜索 */}
-        <Card className="glass mb-6">
-          <CardContent className="p-6">
+        <Card className="glass mb-4">
+          <CardContent className="p-4">
             <div className="flex flex-col md:flex-row gap-4">
               <div className="flex-1">
                 <div className="relative">
@@ -308,6 +322,19 @@ function TasksPage() {
                 </div>
               </div>
               <div className="flex gap-2">
+                <Select value={typeFilter} onValueChange={setTypeFilter}>
+                  <SelectTrigger className="w-[140px] bg-input/50">
+                    <Type className="h-4 w-4 mr-2" />
+                    <SelectValue placeholder="全部类型" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="all">全部类型</SelectItem>
+                    <SelectItem value="text_preview">文生模型(预览)</SelectItem>
+                    <SelectItem value="text_refined">文生模型(精细)</SelectItem>
+                    <SelectItem value="image">单图生成</SelectItem>
+                    <SelectItem value="multi_image">多图生成</SelectItem>
+                  </SelectContent>
+                </Select>
                 <Select value={statusFilter} onValueChange={setStatusFilter}>
                   <SelectTrigger className="w-[140px] bg-input/50">
                     <Filter className="h-4 w-4 mr-2" />
