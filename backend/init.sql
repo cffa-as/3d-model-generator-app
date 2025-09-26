@@ -152,3 +152,16 @@ CREATE INDEX idx_model_comments_user ON model_comments(user_id);
 -- 插入默认管理员用户
 INSERT INTO users (username, password, email, is_admin)
 VALUES ('admin', 'admin123', 'admin@example.com', TRUE); 
+
+-- 用户统计视图
+CREATE OR REPLACE VIEW designer_stats AS
+SELECT 
+    u.id,
+    u.username,
+    u.email,  
+    COUNT(DISTINCT ms.id) as works_count,
+    COUNT(DISTINCT ml.id) as total_likes
+FROM users u
+LEFT JOIN model_showcase ms ON ms.user_id = u.id
+LEFT JOIN model_likes ml ON ml.model_id = ms.id
+GROUP BY u.id, u.username, u.email; 

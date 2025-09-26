@@ -13,8 +13,9 @@ import { Badge } from "@/components/ui/badge"
 import { useToast } from "@/hooks/use-toast"
 import { ApiService, API_BASE_URL } from "@/lib/api"
 import { ThreeModelViewer } from "@/components/tasks/three-model-viewer"
-import { Heart, MessageCircle, Eye, Share2, Plus } from "lucide-react"
+import { Heart, MessageCircle, Eye, Share2, Plus, Trophy } from "lucide-react"
 import { UploadModelDialog } from "@/components/showcase/upload-model-dialog"
+import { DesignerLeaderboard } from "@/components/showcase/designer-leaderboard";
 
 interface ShowcaseModel {
   id: number
@@ -55,6 +56,9 @@ function ShowcasePageContent() {
   const [uploadDialog, setUploadDialog] = useState(false)
   const [comments, setComments] = useState<ModelComment[]>([])
   const [newComment, setNewComment] = useState("")
+  const [isLeaderboardOpen, setIsLeaderboardOpen] = useState(false)
+  const [designers, setDesigners] = useState([])
+  const [isLeaderboardLoading, setIsLeaderboardLoading] = useState(false)
 
   // 筛选状态
   const [searchTerm, setSearchTerm] = useState("")
@@ -91,6 +95,36 @@ function ShowcasePageContent() {
       setFilteredModels(filtered)
     }
   }, [searchTerm, models])
+
+  const fetchLeaderboard = async () => {
+    try {
+      setIsLeaderboardLoading(true);
+      const response = await fetch(`${API_BASE_URL}/showcase/designers/leaderboard`, {
+        headers: ApiService.getAuthHeaders(),
+      });
+      if (!response.ok) {
+        console.error("Leaderboard API error:", await response.text());
+        throw new Error("Failed to fetch leaderboard");
+      }
+      const data = await response.json();
+      setDesigners(data.designers || []);
+    } catch (error) {
+      console.error("Error fetching leaderboard:", error);
+      toast({
+        title: "获取排行榜失败",
+        description: "请稍后重试",
+        variant: "destructive",
+      });
+    } finally {
+      setIsLeaderboardLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    if (isLeaderboardOpen) {
+      fetchLeaderboard();
+    }
+  }, [isLeaderboardOpen]);
 
   if (isLoading) {
     return (
@@ -261,12 +295,24 @@ function ShowcasePageContent() {
             <h1 className="text-3xl font-bold">模型广场</h1>
             <p className="text-muted-foreground mt-1">发现和分享精彩的3D模型作品</p>
           </div>
-          {user && (
-            <Button onClick={() => setUploadDialog(true)}>
-              <Plus className="h-4 w-4 mr-2" />
-              分享模型
-            </Button>
-          )}
+          <div className="flex gap-2">
+            {user && (
+              <>
+                <Button 
+                  onClick={() => setIsLeaderboardOpen(true)}
+                  disabled={isLeaderboardLoading}
+                  className="bg-gradient-to-r from-purple-500 to-indigo-600 hover:from-purple-600 hover:to-indigo-700 text-white shadow-lg hover:shadow-xl transition-all duration-200"
+                >
+                  <Trophy className="h-4 w-4 mr-2" />
+                  设计师排行榜
+                </Button>
+                <Button onClick={() => setUploadDialog(true)}>
+                  <Plus className="h-4 w-4 mr-2" />
+                  分享模型
+                </Button>
+              </>
+            )}
+          </div>
         </div>
 
         <div className="space-y-6">
@@ -376,6 +422,13 @@ function ShowcasePageContent() {
             </div>
           )}
         </div>
+
+        {/* 排行榜模态框 */}
+        <DesignerLeaderboard
+          isOpen={isLeaderboardOpen}
+          onClose={() => setIsLeaderboardOpen(false)}
+          designers={designers}
+        />
 
         <UploadModelDialog
           open={uploadDialog}

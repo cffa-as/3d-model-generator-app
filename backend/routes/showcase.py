@@ -503,3 +503,49 @@ async def get_model_comments(
     except Exception as e:
         logger.error("获取评论列表失败: %s", str(e))
         raise HTTPException(status_code=500, detail=str(e)) 
+
+@router.get("/designers/leaderboard")
+async def get_designer_leaderboard(
+    limit: int = Query(10, gt=0, le=50),
+    current_user: Optional[dict] = Depends(get_current_user)
+) -> Dict[str, Any]:
+    """获取设计师排行榜"""
+    try:
+        # 使用创建好的designer_stats视图获取数据
+        query = """
+            SELECT 
+                id,
+                username,
+                email,
+                works_count,
+                total_likes
+            FROM designer_stats 
+            ORDER BY total_likes DESC 
+            LIMIT %s
+        """
+        
+        designers = await db.fetch_all(query, (limit,))
+        result = []
+        
+        for rank, designer in enumerate(designers, 1):
+            # 生成简单的头像文本（用户名首字母）
+            avatar_text = designer["username"][0].upper() if designer["username"] else "U"
+            
+            result.append({
+                "id": str(designer["id"]),
+                "username": designer["username"],
+                "email": designer["email"],
+                "worksCount": designer["works_count"] or 0,  # 修改字段名以匹配前端
+                "likes": designer["total_likes"] or 0,
+                "rank": rank,
+                "avatarText": avatar_text  # 确保字段名匹配
+            })
+        
+        return {
+            "designers": result,
+            "total": len(result)
+        }
+
+    except Exception as e:
+        logger.error("获取设计师排行榜失败: %s", str(e))
+        raise HTTPException(status_code=500, detail=str(e)) 
