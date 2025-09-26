@@ -15,6 +15,12 @@ class TaskCreate(BaseModel):
     texture_image_url: Optional[str] = None
     ai_model: Optional[str] = None
     preview_task_id: Optional[str] = None  # 用于精细化任务
+    # 新增参数
+    seed: Optional[int] = None
+    topology: Optional[Literal["quad", "triangle"]] = None
+    target_polycount: Optional[int] = Field(None, ge=100, le=300000)
+    symmetry_mode: Optional[Literal["off", "auto", "on"]] = None
+    is_a_t_pose: Optional[bool] = None
 
 class ModelUrls(BaseModel):
     glb: Optional[str]

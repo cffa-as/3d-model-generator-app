@@ -1,11 +1,3 @@
--- 先删除所有表，确保重新创建时没有外键冲突
-DROP TABLE IF EXISTS model_comments;
-DROP TABLE IF EXISTS model_likes;
-DROP TABLE IF EXISTS model_showcase;
-DROP TABLE IF EXISTS model_evaluations;
-DROP TABLE IF EXISTS generation_tasks;
-DROP TABLE IF EXISTS users;
-
 -- 创建数据库
 CREATE DATABASE IF NOT EXISTS model_generator DEFAULT CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;
 
@@ -52,6 +44,13 @@ CREATE TABLE IF NOT EXISTS generation_tasks (
     geometry_score DECIMAL(4,2) NULL,
     rendering_score DECIMAL(4,2) NULL,
     evaluation_history JSON,
+    
+    -- 生成参数相关字段
+    seed INTEGER,
+    topology VARCHAR(10),
+    target_polycount INTEGER,
+    symmetry_mode VARCHAR(10),
+    is_a_t_pose BOOLEAN,
     
     FOREIGN KEY (user_id) REFERENCES users(id),
     FOREIGN KEY (preview_task_id) REFERENCES generation_tasks(task_id) ON DELETE CASCADE

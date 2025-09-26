@@ -8,6 +8,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { TaskProgress } from "@/components/tasks/task-progress"
 import { ModelViewer } from "@/components/tasks/model-viewer"
+import { RefineModelDialog } from "@/components/tasks/refine-model-dialog"
 import { ApiService } from "@/lib/api"
 import { ArrowLeft, RefreshCw, Brush, Wand2, Download, Trash2, Info } from "lucide-react"
 import Link from "next/link"
@@ -66,6 +67,7 @@ function TaskDetailPage() {
   const [activeTexture, setActiveTexture] = useState<string | null>(null)
   const [isDeleting, setIsDeleting] = useState(false)
   const [showDeleteDialog, setShowDeleteDialog] = useState(false)
+  const [showRefineDialog, setShowRefineDialog] = useState(false)
 
   const loadTask = useCallback(
     async (showLoading = true) => {
@@ -111,10 +113,17 @@ function TaskDetailPage() {
     }
   }
 
-  const handleRefine = async () => {
+  const handleRefine = async (params: { enable_pbr: boolean; texture_prompt?: string }) => {
     try {
       setIsRefining(true)
-      const result = await TaskService.refineTask(taskId)
+      const result = await ApiService.createTask({
+        task_type: "text",
+        mode: "refine",
+        prompt: "", // 精细化任务不需要主提示词
+        preview_task_id: taskId,
+        enable_pbr: params.enable_pbr,
+        texture_prompt: params.texture_prompt,
+      })
       toast({
         title: "精细化生成已开始",
         description: "正在生成高质量模型，请稍候...",
@@ -348,7 +357,7 @@ function TaskDetailPage() {
             </Card>
 
             {/* 下载选项 */}
-            {task.model_urls && Object.keys(task.model_urls).length > 0 && (
+            {task.status === "completed" && task.model_urls && Object.keys(task.model_urls).length > 0 && (
               <Card className="glass">
                 <CardHeader>
                   <CardTitle>下载模型</CardTitle>
@@ -376,7 +385,7 @@ function TaskDetailPage() {
             )}
 
             {/* 贴图文件 */}
-            {task.texture_urls && task.texture_urls.length > 0 && (
+            {task.status === "completed" && task.texture_urls && task.texture_urls.length > 0 && (
               <Card className="glass">
                 <CardHeader>
                   <CardTitle>贴图文件</CardTitle>
@@ -447,7 +456,12 @@ function TaskDetailPage() {
                 )}
 
               {task.status === "completed" && task.task_type === "text" && !task.preview_task_id && (
-                <Button variant="default" onClick={handleRefine} disabled={isRefining} className="w-full">
+                <Button 
+                  variant="default" 
+                  onClick={() => setShowRefineDialog(true)} 
+                  disabled={isRefining} 
+                  className="w-full"
+                >
                   <Wand2 className="h-4 w-4 mr-2" />
                   {isRefining ? "精细化生成中..." : "精细化生成"}
                 </Button>
@@ -530,6 +544,14 @@ function TaskDetailPage() {
           </div>
         </div>
       </div>
+
+      {/* 添加精细化生成对话框 */}
+      <RefineModelDialog
+        isOpen={showRefineDialog}
+        onClose={() => setShowRefineDialog(false)}
+        onConfirm={handleRefine}
+        isLoading={isRefining}
+      />
     </div>
   )
 }

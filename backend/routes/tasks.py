@@ -58,7 +58,13 @@ async def create_generation_task(task: TaskCreate, current_user: dict = Depends(
                 texture_prompt=task.texture_prompt,
                 texture_image_url=task.texture_image_url,
                 ai_model=task.ai_model,
-                preview_task_id=task.preview_task_id
+                preview_task_id=task.preview_task_id,
+                # 新增参数
+                seed=task.seed,
+                topology=task.topology,
+                target_polycount=task.target_polycount,
+                symmetry_mode=task.symmetry_mode,
+                is_a_t_pose=task.is_a_t_pose
             )
         elif task.task_type == "image":
             if not task.image_urls or len(task.image_urls) == 0:
@@ -120,8 +126,9 @@ async def create_generation_task(task: TaskCreate, current_user: dict = Depends(
         query = """
             INSERT INTO generation_tasks 
             (user_id, task_id, task_type, prompt, image_urls, status, progress,
-             preview_task_id, enable_pbr, texture_prompt, texture_image_url, ai_model)
-            VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
+             preview_task_id, enable_pbr, texture_prompt, texture_image_url, ai_model,
+             seed, topology, target_polycount, symmetry_mode, is_a_t_pose)
+            VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
         """
         values = (
             current_user["user_id"],
@@ -135,7 +142,12 @@ async def create_generation_task(task: TaskCreate, current_user: dict = Depends(
             task.enable_pbr,
             task.texture_prompt,
             task.texture_image_url,
-            task.ai_model
+            task.ai_model,
+            task.seed,
+            task.topology,
+            task.target_polycount,
+            task.symmetry_mode,
+            task.is_a_t_pose
         )
         await db.execute(query, values)
 
@@ -144,7 +156,8 @@ async def create_generation_task(task: TaskCreate, current_user: dict = Depends(
             SELECT id, task_id, task_type, prompt, image_urls, status, progress,
                    created_at, started_at, finished_at,
                    model_urls, texture_urls, thumbnail_url,
-                   preview_task_id, enable_pbr, texture_prompt, texture_image_url, ai_model
+                   preview_task_id, enable_pbr, texture_prompt, texture_image_url, ai_model,
+                   seed, topology, target_polycount, symmetry_mode, is_a_t_pose
             FROM generation_tasks
             WHERE task_id = %s
         """
@@ -171,7 +184,13 @@ async def create_generation_task(task: TaskCreate, current_user: dict = Depends(
             "enable_pbr": task_record["enable_pbr"],
             "texture_prompt": task_record["texture_prompt"],
             "texture_image_url": task_record["texture_image_url"],
-            "ai_model": task_record["ai_model"]
+            "ai_model": task_record["ai_model"],
+            # 新增字段
+            "seed": task_record["seed"],
+            "topology": task_record["topology"],
+            "target_polycount": task_record["target_polycount"],
+            "symmetry_mode": task_record["symmetry_mode"],
+            "is_a_t_pose": task_record["is_a_t_pose"]
         }
 
     except Exception as e:

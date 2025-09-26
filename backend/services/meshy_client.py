@@ -42,7 +42,13 @@ class MeshyClient:
         texture_prompt: Optional[str] = None,
         texture_image_url: Optional[str] = None,
         ai_model: Optional[str] = None,
-        preview_task_id: Optional[str] = None
+        preview_task_id: Optional[str] = None,
+        # 新增参数
+        seed: Optional[int] = None,
+        topology: Optional[str] = None,
+        target_polycount: Optional[int] = None,
+        symmetry_mode: Optional[str] = None,
+        is_a_t_pose: Optional[bool] = None
     ) -> Dict[str, Any]:
         """文本生成3D任务"""
         try:
@@ -60,6 +66,17 @@ class MeshyClient:
                     })
                     if ai_model:
                         payload["ai_model"] = ai_model
+                    # 添加新参数
+                    if seed is not None:
+                        payload["seed"] = seed
+                    if topology:
+                        payload["topology"] = topology
+                    if target_polycount:
+                        payload["target_polycount"] = target_polycount
+                    if symmetry_mode:
+                        payload["symmetry_mode"] = symmetry_mode
+                    if is_a_t_pose is not None:
+                        payload["is_a_t_pose"] = is_a_t_pose
                 else:
                     # 精细化模式参数
                     if not preview_task_id:
