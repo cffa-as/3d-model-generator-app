@@ -162,7 +162,7 @@ export function TextGenerator({ onTaskCreated, mode = "preview", previewTaskId }
             />
             <p className="text-xs text-muted-foreground">
               {mode === "preview" 
-                ? "提示：描述越详细，生成的模型越准确"
+                ? "提示：这将生成一个预览版本的模型。生成完成后，您可以在任务详情页面进行精细化处理，添加贴图和材质。"
                 : "提示：描述您想要改进的具体方面"
               }
             </p>
