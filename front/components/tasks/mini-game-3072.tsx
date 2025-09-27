@@ -344,7 +344,6 @@ export function MiniGame3072({ open, onClose }: MiniGame3072Props) {
               
               {/* 操作提示 */}
               <div className="bg-white p-2 rounded border border-blue-300 mb-2">
-                <p className="text-gray-800 font-medium text-sm mb-2 text-center">🎮 操作方式</p>
                 <div className="flex justify-center items-center gap-2">
                   <div className="grid grid-cols-3 gap-1">
                     <div></div>
@@ -363,7 +362,6 @@ export function MiniGame3072({ open, onClose }: MiniGame3072Props) {
               
               {/* 游戏规则 */}
               <div className="text-xs text-gray-600 text-center space-y-1">
-                <p className="font-medium text-gray-700">🎯 游戏规则</p>
                 <p>• 相同数字碰撞后合并翻倍</p>
                 <p>• 目标是创造出 <span className="font-bold text-yellow-600">3072</span> 数字块</p>
               </div>
