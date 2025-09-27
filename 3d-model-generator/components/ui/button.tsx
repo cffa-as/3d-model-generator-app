@@ -37,7 +37,7 @@ const buttonVariants = cva(
 
 export interface ButtonProps extends React.ComponentProps<'button'>, VariantProps<typeof buttonVariants> {
   asChild?: boolean
-  debounceTime?: number
+  debounceTime?: number | false  // false means no debounce
 }
 
 function Button({
@@ -47,7 +47,7 @@ function Button({
   asChild = false,
   onClick,
   disabled,
-  debounceTime = 1000, // 默认防抖时间1秒
+  debounceTime = false, // 默认不使用防抖
   ...props
 }: ButtonProps) {
   const Comp = asChild ? Slot : 'button'
@@ -55,15 +55,18 @@ function Button({
 
   const handleClick = React.useCallback(
     (event: React.MouseEvent<HTMLButtonElement>) => {
-      if (isDebouncing || disabled) return
+      if (disabled) return
+      if (isDebouncing && debounceTime !== false) return
 
-      setIsDebouncing(true)
+      if (debounceTime !== false) {
+        setIsDebouncing(true)
+        // 设置防抖计时器
+        setTimeout(() => {
+          setIsDebouncing(false)
+        }, debounceTime)
+      }
+
       onClick?.(event)
-
-      // 设置防抖计时器
-      setTimeout(() => {
-        setIsDebouncing(false)
-      }, debounceTime)
     },
     [onClick, isDebouncing, disabled, debounceTime]
   )
@@ -73,7 +76,7 @@ function Button({
       data-slot="button"
       className={cn(buttonVariants({ variant, size, className }))}
       onClick={handleClick}
-      disabled={disabled || isDebouncing}
+      disabled={disabled || (debounceTime !== false && isDebouncing)}
       {...props}
     />
   )

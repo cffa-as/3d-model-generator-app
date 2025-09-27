@@ -36,8 +36,8 @@ CREATE TABLE IF NOT EXISTS generation_tasks (
     enable_pbr BOOLEAN DEFAULT FALSE,
     texture_prompt TEXT,
     texture_image_url TEXT,
-    ai_model VARCHAR(20),
-
+    art_style ENUM('realistic', 'sculpture') DEFAULT 'realistic',
+    
     -- 评估相关字段
     evaluation_status VARCHAR(20) DEFAULT 'pending',
     topology_score DECIMAL(4,2) NULL,
