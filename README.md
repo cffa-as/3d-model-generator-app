@@ -62,10 +62,6 @@ npm install
 # 或使用 pnpm
 pnpm install
 
-# 配置环境变量（可选）
-# 创建 .env.local 文件，添加：
-# NEXT_PUBLIC_API_URL=http://localhost:8000/api
-
 # 构建生产版本（推荐，因为资源多，开发环境较慢）
 npm run build
 npm start
