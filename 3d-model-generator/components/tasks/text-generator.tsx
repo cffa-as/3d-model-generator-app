@@ -66,6 +66,47 @@ interface SimilarModelsResult {
   models: SimilarModelResult[];
 }
 
+// 添加验证函数
+const validatePrompt = (text: string): { isValid: boolean; message?: string } => {
+  // 去除多余空格
+  const cleaned = text.trim().replace(/\s+/g, ' ');
+
+  // 检查长度
+  if (cleaned.length < 2) {
+    return { isValid: false, message: "描述文本太短，请详细描述您想要的模型" };
+  }
+  if (cleaned.length > 200) {
+    return { isValid: false, message: "描述文本过长，请精简您的描述" };
+  }
+
+  // 检查重复字符
+  const repeatedCharsRegex = /(.)\1{4,}/;  // 同一字符重复5次以上
+  if (repeatedCharsRegex.test(cleaned)) {
+    return { isValid: false, message: "请不要输入重复的字符" };
+  }
+
+  // 检查是否全是语气词或感叹词
+  const meaninglessRegex = /^[啊哈呀哦嗯呢吧么]+$/;
+  if (meaninglessRegex.test(cleaned)) {
+    return { isValid: false, message: "请输入有意义的描述文本" };
+  }
+
+  // 检查是否包含实际内容（至少包含一个名词或形容词）
+  const hasContent = /[一-龥]{1,}[的地得]?[一-龥]+|[a-zA-Z]+\s*[a-zA-Z]+/;
+  if (!hasContent.test(cleaned)) {
+    return { isValid: false, message: "请描述具体的物体或场景" };
+  }
+
+  // 检查标点符号
+  const punctuationRegex = /[。，！？；：、]/g;
+  const punctuationCount = (cleaned.match(punctuationRegex) || []).length;
+  if (punctuationCount > cleaned.length / 4) {
+    return { isValid: false, message: "请减少标点符号的使用" };
+  }
+
+  return { isValid: true };
+};
+
 export function TextGenerator({ onTaskCreated, mode = "preview", previewTaskId }: TextGeneratorProps) {
   const [prompt, setPrompt] = useState("")
   const [isAdvancedMode, setIsAdvancedMode] = useState(false)
@@ -195,17 +236,34 @@ export function TextGenerator({ onTaskCreated, mode = "preview", previewTaskId }
     }
   }
 
+  // 修改生成处理函数
   const handleGenerate = async () => {
     try {
-      setIsLoading(true)
-      setError("")
-      
+      // 先验证输入
+      const validation = validatePrompt(prompt);
+      if (!validation.isValid) {
+        toast({
+          title: "输入无效",
+          description: validation.message,
+          variant: "destructive",
+        });
+        return;
+      }
+
+      setIsLoading(true);
+      setError("");
+
+      // 预处理提示词
+      const processedPrompt = prompt.trim()
+        .replace(/\s+/g, ' ')  // 合并多个空格
+        .replace(/[^\u4e00-\u9fa5a-zA-Z0-9\s\p{P}]/gu, '');  // 移除特殊字符
+
       // 先检查相似模型
       const similarResult = await ApiService.checkSimilarModels({
         task_type: "text",
-        prompt: prompt,
+        prompt: processedPrompt,
         art_style: artStyle
-      }) as SimilarModelsResult
+      }) as SimilarModelsResult;
 
       if (similarResult.found && similarResult.models && similarResult.models.length > 0) {
         setSimilarModels(similarResult.models)
@@ -325,14 +383,32 @@ export function TextGenerator({ onTaskCreated, mode = "preview", previewTaskId }
               <Textarea
                 id="prompt"
                 value={prompt}
-                onChange={(e) => setPrompt(e.target.value)}
+                onChange={(e) => {
+                  const newValue = e.target.value;
+                  setPrompt(newValue);
+                  // 实时验证但不显示错误，只在提交时显示
+                  const validation = validatePrompt(newValue);
+                  if (!validation.isValid) {
+                    setError(validation.message || "");
+                  } else {
+                    setError("");
+                  }
+                }}
                 placeholder={mode === "preview" 
                   ? "请详细描述您想要生成的3D模型，例如：一只可爱的卡通猫咪，坐着的姿势，橙色毛发，大眼睛..."
                   : "请描述您想要的精细化效果，例如：增加更多细节，提高表面质感..."
                 }
-                className="min-h-[120px] bg-input/50"
+                className={cn(
+                  "min-h-[120px] bg-input/50",
+                  error && "border-red-500"
+                )}
                 disabled={isLoading}
               />
+              {error && (
+                <p className="text-sm text-red-500">
+                  {error}
+                </p>
+              )}
               <p className="text-xs text-muted-foreground">
                 {mode === "preview" 
                   ? "提示：这将生成一个预览版本的模型。生成完成后，您可以在任务详情页面进行精细化处理，添加贴图和材质。"
