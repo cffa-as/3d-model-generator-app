@@ -14,6 +14,7 @@ import {
   Star,
   Store 
 } from "lucide-react"
+import { GlobalMiniGame } from "./global-mini-game"
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -133,6 +134,9 @@ export function Navbar() {
 
             {/* User Actions */}
             <div className="flex items-center gap-2">
+              {/* 全局小游戏按钮 */}
+              <GlobalMiniGame />
+              
               {user ? (
                 <div className="flex items-center gap-2">
                   {/* 桌面端显示退出按钮 */}

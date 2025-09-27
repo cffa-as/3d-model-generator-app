@@ -33,6 +33,8 @@ import {
   HoverCardContent,
   HoverCardTrigger,
 } from "@/components/ui/hover-card"
+import { MiniGame3072 } from "@/components/tasks/mini-game-3072"
+import { GamepadIcon, X } from "lucide-react"
 
 interface TaskStatus {
   id: number
@@ -77,6 +79,9 @@ function TaskDetailPage() {
   const [showRefineDialog, setShowRefineDialog] = useState(false)
   const [rating, setRating] = useState<{ rating: number; comment: string } | null>(null)
   const [isLoadingRating, setIsLoadingRating] = useState(false)
+  const [showMiniGame, setShowMiniGame] = useState(false)
+  const [initialLoadAttempts, setInitialLoadAttempts] = useState(0)
+  const [isInitialLoad, setIsInitialLoad] = useState(true)
 
   const loadTask = useCallback(
     async (showLoading = true) => {
@@ -91,14 +96,27 @@ function TaskDetailPage() {
         console.log("任务数据:", taskData)
         setTask(taskData)
         
-        // 如果成功获取到任务数据，清除错误状态
+        // 如果成功获取到任务数据，清除错误状态并标记初始加载完成
         setError("")
+        setIsInitialLoad(false)
+        setInitialLoadAttempts(0)
       } catch (err) {
-        // 不设置错误状态，继续轮询
         console.log("获取任务状态失败，继续重试:", err)
-        // 只有在初次加载时才显示错误
-        if (showLoading && !task) {
-          setError("正在等待任务准备就绪...")
+        
+        // 更新尝试次数
+        if (isInitialLoad) {
+          setInitialLoadAttempts(prev => prev + 1)
+        }
+        
+        // 在初始加载的前3次尝试中，不显示错误信息，而是显示友好的等待消息
+        if (isInitialLoad && initialLoadAttempts < 3) {
+          setError("") // 不显示错误，保持加载状态
+        } else if (isInitialLoad) {
+          // 3次尝试后，显示友好的等待消息
+          setError("任务正在准备中，请稍候...")
+        } else if (!task) {
+          // 非初始加载时才显示具体错误
+          setError("获取任务状态失败，正在重试...")
         }
       } finally {
         if (showLoading) {
@@ -106,7 +124,7 @@ function TaskDetailPage() {
         }
       }
     },
-    [taskId], // 移除 task 依赖，避免循环依赖
+    [taskId, isInitialLoad, initialLoadAttempts, task],
   )
 
   const handleGenerateTexture = async () => {
@@ -320,8 +338,13 @@ function TaskDetailPage() {
           <div className="text-center py-12">
             <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary mx-auto mb-4"></div>
             <p className="text-muted-foreground">
-              {error || "加载任务详情中..."}
+              {error || (isInitialLoad ? "正在初始化任务..." : "加载任务详情中...")}
             </p>
+            {isInitialLoad && (
+              <p className="text-xs text-muted-foreground mt-2">
+                任务刚创建，正在准备数据...
+              </p>
+            )}
           </div>
         </div>
       </div>
@@ -336,7 +359,14 @@ function TaskDetailPage() {
         <div className="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
           <div className="text-center py-12">
             <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary mx-auto mb-4"></div>
-            <p className="text-muted-foreground">正在等待任务准备就绪...</p>
+            <p className="text-muted-foreground">
+              {error || "正在等待任务准备就绪..."}
+            </p>
+            {isInitialLoad && (
+              <p className="text-xs text-muted-foreground mt-2">
+                新创建的任务需要几秒钟来初始化
+              </p>
+            )}
           </div>
         </div>
       </div>
@@ -382,12 +412,54 @@ function TaskDetailPage() {
             />
 
             {task.status === "pending" && (
-              <Alert>
-                <Info className="h-4 w-4" />
-                <AlertDescription>
-                  任务正在生成中，您可以离开此页面。系统会在后台继续处理，完成后可在任务列表中查看结果。
-                </AlertDescription>
-              </Alert>
+              <div className="space-y-4">
+                <Alert>
+                  <Info className="h-4 w-4" />
+                  <AlertDescription>
+                    任务正在生成中，您可以离开此页面。系统会在后台继续处理，完成后可在任务列表中查看结果。
+                  </AlertDescription>
+                </Alert>
+                
+                {/* 小游戏选项 */}
+                <Card className="glass border-dashed">
+                  <CardContent className="p-4">
+                    <div className="flex items-center justify-between">
+                      <div className="flex items-center gap-3">
+                        <GamepadIcon className="h-5 w-5 text-blue-600" />
+                        <div>
+                          <h3 className="font-medium">等待时来玩个小游戏？</h3>
+                          <p className="text-sm text-muted-foreground">
+                            3072数字合并游戏，让等待变得有趣
+                          </p>
+                        </div>
+                      </div>
+                      <Button
+                        variant={showMiniGame ? "secondary" : "outline"}
+                        size="sm"
+                        onClick={() => setShowMiniGame(!showMiniGame)}
+                      >
+                        {showMiniGame ? (
+                          <>
+                            <X className="h-4 w-4 mr-1" />
+                            关闭游戏
+                          </>
+                        ) : (
+                          <>
+                            <GamepadIcon className="h-4 w-4 mr-1" />
+                            开始游戏
+                          </>
+                        )}
+                      </Button>
+                    </div>
+                  </CardContent>
+                </Card>
+                
+                {/* 小游戏模态框 */}
+                <MiniGame3072 
+                  open={showMiniGame} 
+                  onClose={() => setShowMiniGame(false)} 
+                />
+              </div>
             )}
 
             {/* 任务详细信息 */}
