@@ -285,7 +285,6 @@ export function MiniGame3072({ open, onClose }: MiniGame3072Props) {
             <div className="bg-yellow-100 border border-yellow-300 rounded-lg p-2 animate-pulse">
               <div className="flex items-center justify-center gap-2 text-yellow-800">
                 <span className="text-lg">⌨️</span>
-                <span className="font-medium text-sm">使用键盘方向键开始游戏！</span>
                 <div className="flex gap-1">
                   <span className="bg-yellow-200 px-1 py-0.5 rounded text-xs font-bold">↑</span>
                   <span className="bg-yellow-200 px-1 py-0.5 rounded text-xs font-bold">↓</span>
@@ -298,13 +297,7 @@ export function MiniGame3072({ open, onClose }: MiniGame3072Props) {
 
           {/* 游戏网格 */}
           <div className="bg-gray-300 p-3 rounded-lg relative">
-            {showKeyHint && (
-              <div className="absolute inset-0 bg-black bg-opacity-10 rounded-lg flex items-center justify-center">
-                <div className="bg-white px-3 py-2 rounded-lg shadow-lg border">
-                  <p className="text-gray-800 font-medium text-sm">👆 按任意方向键开始</p>
-                </div>
-              </div>
-            )}
+
             <div className="grid grid-cols-4 gap-2">
               {gameState.grid.flat().map((value, index) => (
                 <div

@@ -426,7 +426,7 @@ async def get_task_status(
         query = """
             SELECT id, task_id, task_type, prompt, image_urls, status, progress,
                    created_at, started_at, finished_at,
-                   model_urls, texture_urls, thumbnail_url, task_error
+                   model_urls, texture_urls, thumbnail_url, task_error, preview_task_id
             FROM generation_tasks
             WHERE task_id = %s AND user_id = %s
         """
@@ -451,7 +451,8 @@ async def get_task_status(
                 "created_at": task["created_at"].isoformat() if task["created_at"] else None,
                 "started_at": task["started_at"],
                 "finished_at": task["finished_at"],
-                "task_error": task["task_error"]
+                "task_error": task["task_error"],
+                "preview_task_id": task["preview_task_id"]
             }
 
         # 对于进行中的任务，尝试从Meshy获取最新状态（带重试）
@@ -543,7 +544,8 @@ async def get_task_status(
             "created_at": task["created_at"].isoformat() if task["created_at"] else None,
             "started_at": meshy_task.get("started_at") if meshy_task else task["started_at"],
             "finished_at": meshy_task.get("finished_at") if meshy_task else task["finished_at"],
-            "task_error": meshy_task.get("task_error", {}).get("message", "") if meshy_task and meshy_task.get("task_error") else task["task_error"]
+            "task_error": meshy_task.get("task_error", {}).get("message", "") if meshy_task and meshy_task.get("task_error") else task["task_error"],
+            "preview_task_id": task["preview_task_id"]
         }
 
     except HTTPException:

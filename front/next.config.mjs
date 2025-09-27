@@ -7,7 +7,7 @@ const nextConfig = {
   
   // 构建优化
   poweredByHeader: false, // 移除 X-Powered-By header
-  reactStrictMode: true, // 启用严格模式以提前发现问题
+  reactStrictMode: false, // 暂时禁用严格模式以解决轮询问题
   
   // 缓存优化
   onDemandEntries: {

@@ -1,6 +1,6 @@
 "use client"
 
-import { useState, useEffect, useCallback } from "react"
+import { useState, useEffect, useCallback, useRef } from "react"
 import { useRouter, useParams } from "next/navigation"
 import { Navbar } from "@/components/layout/navbar"
 import { useAuth, AuthProvider } from "@/hooks/use-auth"
@@ -82,18 +82,32 @@ function TaskDetailPage() {
   const [showMiniGame, setShowMiniGame] = useState(false)
   const [initialLoadAttempts, setInitialLoadAttempts] = useState(0)
   const [isInitialLoad, setIsInitialLoad] = useState(true)
+  const [isRequestInProgress, setIsRequestInProgress] = useState(false)
+  
+  // 使用 ref 来保存最新的 loadTask 函数，避免无限循环
+  const loadTaskRef = useRef<(showLoading?: boolean) => Promise<void>>()
+  const intervalRef = useRef<NodeJS.Timeout | null>(null)
 
-  const loadTask = useCallback(
+    const loadTask = useCallback(
     async (showLoading = true) => {
+      // 防止重复请求
+      if (isRequestInProgress) {
+        console.log("请求进行中，跳过...")
+        return
+      }
+
       try {
+        setIsRequestInProgress(true)
         if (showLoading) {
           setLoading(true)
         }
         setError("")
         
         // 持续尝试获取任务状态，直到成功
+        console.log("🔍 loadTask 被调用，来源:", new Error().stack?.split('\n')[2])
         const taskData = await ApiService.getTaskStatus(taskId)
-        console.log("任务数据:", taskData)
+        console.log("📊 任务状态:", taskData.status)
+        
         setTask(taskData)
         
         // 如果成功获取到任务数据，清除错误状态并标记初始加载完成
@@ -114,18 +128,22 @@ function TaskDetailPage() {
         } else if (isInitialLoad) {
           // 3次尝试后，显示友好的等待消息
           setError("任务正在准备中，请稍候...")
-        } else if (!task) {
+        } else {
           // 非初始加载时才显示具体错误
           setError("获取任务状态失败，正在重试...")
         }
       } finally {
+        setIsRequestInProgress(false)
         if (showLoading) {
           setLoading(false)
         }
       }
     },
-    [taskId, isInitialLoad, initialLoadAttempts, task],
+    [taskId, isInitialLoad, initialLoadAttempts, isRequestInProgress],
   )
+  
+  // 更新 ref
+  loadTaskRef.current = loadTask
 
   const handleGenerateTexture = async () => {
     try {
@@ -215,39 +233,63 @@ function TaskDetailPage() {
 
   useEffect(() => {
     if (user && taskId) {
-      loadTask()
+      console.log("🚀 初始加载任务")
+      loadTaskRef.current?.()
     }
-  }, [user, taskId, loadTask])
+  }, [user, taskId])
 
-  // 轮询进度
+  // 清理之前的定时器
   useEffect(() => {
-    if (!task || task.status !== "pending") {
+    return () => {
+      if (intervalRef.current) {
+        clearInterval(intervalRef.current)
+        intervalRef.current = null
+      }
+    }
+  }, [])
+
+  // 轮询进度 - 只对 pending 状态的任务进行轮询
+  useEffect(() => {
+    // 清理现有定时器
+    if (intervalRef.current) {
+      clearInterval(intervalRef.current)
+      intervalRef.current = null
       setIsPolling(false)
-      return
     }
 
-    setIsPolling(true)
-    const interval = setInterval(() => {
-      loadTask(false) // 不显示加载状态
-    }, 3000) // 每3秒轮询一次
+    // 只有当任务状态为 pending 时才启动轮询
+    if (task && task.status === "pending") {
+      console.log("开始轮询pending任务:", task.task_id)
+      setIsPolling(true)
+       
+      intervalRef.current = setInterval(() => {
+        console.log("轮询中...")
+        loadTaskRef.current?.(false) // 不显示加载状态
+      }, 5000) // 每5秒轮询一次
+    } else {
+      console.log("停止轮询，任务状态:", task?.status || "无任务")
+      setIsPolling(false)
+    }
 
     return () => {
-      clearInterval(interval)
+      if (intervalRef.current) {
+        clearInterval(intervalRef.current)
+        intervalRef.current = null
+      }
       setIsPolling(false)
     }
-  }, [task?.status, loadTask]) // 只依赖任务状态
+  }, [task?.status]) // 只依赖任务状态
 
-  // 如果没有任务数据，持续重试获取
-  useEffect(() => {
-    if (!task && user && taskId && !loading) {
-      const retryInterval = setInterval(() => {
-        console.log("任务数据为空，重试获取...")
-        loadTask(false)
-      }, 3000) // 每2秒重试一次
+  // 暂时禁用重试逻辑，避免干扰
+  // useEffect(() => {
+  //   if (!task && user && taskId && !loading && isInitialLoad) {
+  //     const retryInterval = setInterval(() => {
+  //       loadTaskRef.current?.(false)
+  //     }, 5000) // 每5秒重试一次
 
-      return () => clearInterval(retryInterval)
-    }
-  }, [!task, user, taskId, loading, loadTask]) // 修改依赖项
+  //     return () => clearInterval(retryInterval)
+  //   }
+  // }, [task, user, taskId, loading, isInitialLoad])
 
   // 加载评分
   const loadRating = useCallback(async () => {
@@ -576,6 +618,7 @@ function TaskDetailPage() {
 
             {/* 操作按钮 */}
             <div className="flex flex-col gap-2">
+              
               <Button
                 variant="outline"
                 onClick={() => loadTask(true)}
