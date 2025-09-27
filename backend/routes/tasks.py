@@ -1,4 +1,4 @@
-from fastapi import APIRouter, Depends, HTTPException, UploadFile, File, Response, Query
+from fastapi import APIRouter, Depends, HTTPException, UploadFile, File, Response, Query, Request
 from typing import Dict, Any, List, Optional
 import base64
 import json
@@ -7,6 +7,7 @@ from services.db import Database
 from services.auth import get_current_user
 from services.meshy_client import MeshyClient
 from services.cache_service import ModelCacheService
+from services.storage import storage_service
 from models.task import TaskCreate
 import httpx
 import os
@@ -16,8 +17,11 @@ from starlette.responses import FileResponse
 import asyncio
 from datetime import datetime
 import uuid
+from fastapi.exceptions import RequestValidationError
+from fastapi.responses import JSONResponse
 
 # 配置日志
+logging.basicConfig(level=logging.DEBUG)  # 设置日志级别为DEBUG
 logger = logging.getLogger(__name__)
 
 router = APIRouter()
@@ -35,112 +39,173 @@ async def check_similar_models(
     cache_service: ModelCacheService = Depends(ModelCacheService)
 ):
     try:
-        results = cache_service.find_similar_models(
-            prompt=task["prompt"],
-            style=task.get("art_style", "")
-        )
-        return {
-            "found": len(results) > 0,
-            "models": results
-        }
+        if task["task_type"] == "text":
+            results = cache_service.find_similar_models(
+                prompt=task["prompt"],
+                style=task.get("art_style", ""),
+                similarity_threshold=0.8  # 使用0.8的阈值
+            )
+            return {
+                "found": len(results) > 0,
+                "models": results
+            }
+        elif task["task_type"] in ["image", "multi_image"]:
+            # 检查图片相似度
+            similar_images = []
+            
+            for image_path in task.get("image_paths", []):
+                if not os.path.exists(image_path):
+                    logger.warning(f"图片文件不存在: {image_path}")
+                    continue
+                    
+                similar = storage_service.find_similar_images_by_path(image_path)
+                if similar:
+                    similar_images.extend(similar)
+            
+            if similar_images:
+                # 构建MySQL兼容的查询，查询 original_image_url 字段
+                like_conditions = []
+                query_params = []
+                for img in similar_images:
+                    like_conditions.append("original_image_url LIKE %s")
+                    query_params.append(f'%{img}%')
+                
+                query = f"""
+                    SELECT id, task_id, prompt, status, model_urls, thumbnail_url, created_at
+                    FROM generation_tasks
+                    WHERE ({' OR '.join(like_conditions)})
+                    AND status = 'completed'
+                    LIMIT 5
+                """
+                
+                similar_tasks = await db.fetch_all(query, tuple(query_params))
+                
+                return {
+                    "found": len(similar_tasks) > 0,
+                    "models": [{
+                        "task_id": task["task_id"],
+                        "prompt": task["prompt"],
+                        "model_urls": json.loads(task["model_urls"]) if task["model_urls"] else None,
+                        "thumbnail_url": task["thumbnail_url"],
+                        "created_at": task["created_at"].isoformat() if task["created_at"] else None
+                    } for task in similar_tasks]
+                }
+            
+        return {"found": False, "models": []}
     except Exception as e:
         logger.error(f"检查相似模型失败: {e}")
         return {"found": False, "models": []}
 
 @router.post("/generate")
 async def create_task(
-    task: dict,
-    use_cache: bool = True,  # 这里是关键
-    current_user: dict = Depends(get_current_user),  # 添加这行
+    request: Request,
+    use_cache: bool = True,
+    current_user: dict = Depends(get_current_user),
     cache_service: ModelCacheService = Depends(ModelCacheService)
 ):
     try:
-        logger.info(f"Creating task with params: {task}")
+        # 获取原始请求数据
+        raw_data = await request.json()
         
-        # 验证必要的参数
-        if "task_type" not in task:
-            raise HTTPException(status_code=400, detail="Missing task_type")
-        if "prompt" not in task and task["task_type"] == "text":
-            raise HTTPException(status_code=400, detail="Missing prompt for text task")
+        # 验证并转换为TaskCreate模型
+        try:
+            task = TaskCreate(**raw_data)
+        except Exception as e:
+            logger.error(f"数据验证错误: {str(e)}")
+            logger.error(f"Failed data: {raw_data}")
+            raise HTTPException(status_code=422, detail=str(e))
+
+
+
+        # 如果是文本任务，检查缓存
+        if task.task_type == "text" and use_cache:
+            cached_result = cache_service.find_similar_model(
+                prompt=task.prompt,
+                style=task.art_style or "",
+                similarity_threshold=0.85
+            )
             
-        if task["task_type"] == "text":
-            # 只在 use_cache=True 时才检查缓存
-            if use_cache:
-                cached_result = cache_service.find_similar_model(
-                    prompt=task["prompt"],
-                    style=task.get("art_style", "") or "",
-                    similarity_threshold=0.85
+            if cached_result and isinstance(cached_result, dict) and cached_result.get("found"):
+                # 使用新的缓存结果格式
+                task_id = str(uuid.uuid4())
+                query = """
+                    INSERT INTO generation_tasks 
+                    (task_id, user_id, task_type, prompt, status, model_urls, created_at, started_at, finished_at, progress)
+                    VALUES (%s, %s, %s, %s, %s, %s, NOW(), NOW(), NOW(), 100)
+                """
+                values = (
+                    task_id,
+                    current_user["user_id"],
+                    task.task_type,
+                    task.prompt,
+                    "completed",
+                    json.dumps(cached_result.get("model_urls", {})),
                 )
                 
-                if cached_result and isinstance(cached_result, dict) and cached_result.get("found"):
-                    # 使用新的缓存结果格式
-                    task_id = str(uuid.uuid4())
-                    query = """
-                        INSERT INTO generation_tasks 
-                        (task_id, user_id, task_type, prompt, status, model_urls, created_at, started_at, finished_at, progress)
-                        VALUES (%s, %s, %s, %s, %s, %s, NOW(), NOW(), NOW(), 100)
-                    """
-                    values = (
-                        task_id,
-                        current_user["user_id"],
-                        task["task_type"],
-                        task["prompt"],
-                        "completed",
-                        json.dumps(cached_result.get("model_urls", {})),
-                    )
-                    
-                    await db.execute(query, values)
-                    
-                    # 获取刚创建的任务
-                    query = """
-                        SELECT id, task_id, task_type, prompt, status, model_urls, 
-                               created_at, started_at, finished_at, progress
-                        FROM generation_tasks
-                        WHERE task_id = %s
-                    """
-                    task_record = await db.fetch_one(query, (task_id,))
-                    
-                    if not task_record:
-                        raise HTTPException(status_code=500, detail="保存任务失败")
-                    
-                    return {
-                        "task_id": task_id,
-                        "status": "completed",
-                        "message": "使用缓存模型",
-                        "is_cached": True,
-                        "model_urls": json.loads(task_record["model_urls"]) if task_record["model_urls"] else None,
-                    }
-            
-            # 如果不使用缓存或没有找到缓存，直接创建新任务
+                await db.execute(query, values)
+                
+                # 添加小延迟确保数据已提交
+                await asyncio.sleep(0.1)
+
+                # 获取刚创建的任务
+                query = """
+                    SELECT id, task_id, task_type, prompt, status, model_urls, 
+                           created_at, started_at, finished_at, progress
+                    FROM generation_tasks
+                    WHERE task_id = %s
+                """
+                task_record = await db.fetch_one(query, (task_id,))
+                
+                if not task_record:
+                    raise HTTPException(status_code=500, detail="保存任务失败")
+                
+                return {
+                    "task_id": task_id,
+                    "status": "completed",
+                    "message": "使用缓存模型",
+                    "is_cached": True,
+                    "model_urls": json.loads(task_record["model_urls"]) if task_record["model_urls"] else None,
+                }
+        
+        # 根据任务类型调用不同的API
+        if task.task_type == "text":
             result = await meshy_client.create_text_task(
-                prompt=task["prompt"],
-                art_style=task.get("art_style", "realistic"),
-                mode=task.get("mode", "preview"),
-                should_remesh=task.get("should_remesh", True),
-                enable_pbr=task.get("enable_pbr", False),
-                texture_prompt=task.get("texture_prompt"),
-                texture_image_url=task.get("texture_image_url"),
-                ai_model=task.get("ai_model"),
-                preview_task_id=task.get("preview_task_id"),
-                # 新增参数
-                seed=task.get("seed"),
-                topology=task.get("topology"),
-                target_polycount=task.get("target_polycount"),
-                symmetry_mode=task.get("symmetry_mode"),
-                is_a_t_pose=task.get("is_a_t_pose")
+                prompt=task.prompt,
+                art_style=task.art_style or "realistic",
+                mode=task.mode or "preview",
+                should_remesh=task.should_remesh if task.should_remesh is not None else True,
+                enable_pbr=task.enable_pbr if task.enable_pbr is not None else False,
+                texture_prompt=task.texture_prompt,
+                texture_image_url=task.texture_image_url,
+                ai_model=task.ai_model,
+                preview_task_id=task.preview_task_id,
+                seed=task.seed,
+                topology=task.topology,
+                target_polycount=task.target_polycount,
+                symmetry_mode=task.symmetry_mode,
+                is_a_t_pose=task.is_a_t_pose
             )
-        elif task["task_type"] == "image":
-            if not task.get("image_urls") or len(task.get("image_urls", [])) == 0:
+        elif task.task_type == "image":
+            if not task.image_urls or len(task.image_urls) == 0:
                 raise HTTPException(status_code=400, detail="图片URL不能为空")
             
             # 从base64 URL中提取图片数据
-            image_url = task.get("image_urls")[0]
+            image_url = task.image_urls[0]
+            
+            # 保存图片并获取文件名（用于数据库存储）
+            saved_filename = None
             try:
                 # 检查是否是base64图片URL
                 if not image_url.startswith('data:image/'):
+                    logger.error(f"Invalid image format. URL starts with: {image_url[:50]}")
                     raise ValueError("无效的图片格式")
                 
-                # 提取base64数据
+                # 保存图片并获取文件名
+                saved_filename = storage_service.save_base64_image(image_url)
+                if not saved_filename:
+                    raise HTTPException(status_code=400, detail="保存图片失败")
+                
+                # 提取base64数据用于Meshy API
                 _, base64_data = image_url.split(',', 1)
                 image_data = base64.b64decode(base64_data)
                 
@@ -154,16 +219,26 @@ async def create_task(
                 logger.error("处理图片数据失败: %s", str(e))
                 raise HTTPException(status_code=400, detail="无效的图片数据")
                 
-        elif task["task_type"] == "multi_image":
-            if not task.get("image_urls") or len(task.get("image_urls", [])) < 2:
+        elif task.task_type == "multi_image":
+            if not task.image_urls or len(task.image_urls) < 2:
                 raise HTTPException(status_code=400, detail="多图生成至少需要2张图片")
             
-            # 从base64 URL中提取所有图片数据
+            # 保存所有图片并获取文件名
+            saved_filenames = []
             try:
                 image_data_list = []
-                for image_url in task.get("image_urls", []):
+                for image_url in task.image_urls:
                     if not image_url.startswith('data:image/'):
                         raise ValueError("无效的图片格式")
+                    
+                    # 保存图片并获取文件名
+                    saved_filename = storage_service.save_base64_image(image_url)
+                    if saved_filename:
+                        saved_filenames.append(saved_filename)
+                    else:
+                        raise HTTPException(status_code=400, detail="保存图片失败")
+                    
+                    # 提取base64数据用于Meshy API
                     _, base64_data = image_url.split(',', 1)
                     image_data = base64.b64decode(base64_data)
                     image_data_list.append(image_data)
@@ -186,78 +261,59 @@ async def create_task(
             raise HTTPException(status_code=500, detail="创建任务失败")
 
         # 保存任务到数据库
-        query = """
-            INSERT INTO generation_tasks 
-            (user_id, task_id, task_type, prompt, image_urls, status, progress,
-             preview_task_id, enable_pbr, texture_prompt, texture_image_url, ai_model,
-             seed, topology, target_polycount, symmetry_mode, is_a_t_pose)
-            VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
-        """
-        values = (
-            current_user["user_id"],
-            task_id,
-            task["task_type"],
-            task["prompt"],
-            json.dumps(task.get("image_urls")) if task.get("image_urls") else None,
-            "pending",
-            0,
-            task.get("preview_task_id"),
-            task.get("enable_pbr"),
-            task.get("texture_prompt"),
-            task.get("texture_image_url"),
-            task.get("ai_model"),
-            task.get("seed"),
-            task.get("topology"),
-            task.get("target_polycount"),
-            task.get("symmetry_mode"),
-            task.get("is_a_t_pose")
-        )
-        await db.execute(query, values)
+        try:
+            # 准备数据库字段
+            image_urls_for_db = json.dumps(task.image_urls) if task.image_urls else None
+            original_image_url_for_db = None
+            
+            # 对于图片任务，保存文件路径到 original_image_url 字段
+            if task.task_type == "image" and saved_filename:
+                original_image_url_for_db = saved_filename
+            elif task.task_type == "multi_image" and saved_filenames:
+                original_image_url_for_db = json.dumps(saved_filenames)
+            
+            query = """
+                INSERT INTO generation_tasks 
+                (user_id, task_id, task_type, prompt, image_urls, original_image_url, status, progress,
+                 preview_task_id, enable_pbr, texture_prompt, texture_image_url, ai_model,
+                 seed, topology, target_polycount, symmetry_mode, is_a_t_pose)
+                VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
+            """
+            values = (
+                current_user["user_id"],
+                task_id,
+                task.task_type,
+                task.prompt,
+                image_urls_for_db,  # base64 数据
+                original_image_url_for_db,  # 文件路径
+                "pending",
+                0,
+                task.preview_task_id,
+                task.enable_pbr,
+                task.texture_prompt,
+                task.texture_image_url,
+                task.ai_model,
+                task.seed,
+                task.topology,
+                task.target_polycount,
+                task.symmetry_mode,
+                task.is_a_t_pose
+            )
+            
+            await db.execute(query, values)
 
-        # 查询刚创建的任务
-        query = """
-            SELECT id, task_id, task_type, prompt, image_urls, status, progress,
-                   created_at, started_at, finished_at,
-                   model_urls, texture_urls, thumbnail_url,
-                   preview_task_id, enable_pbr, texture_prompt, texture_image_url, ai_model,
-                   seed, topology, target_polycount, symmetry_mode, is_a_t_pose
-            FROM generation_tasks
-            WHERE task_id = %s
-        """
-        task_record = await db.fetch_one(query, (task_id,))
-        
-        if not task_record:
-            raise HTTPException(status_code=500, detail="保存任务失败")
-
-        return {
-            "id": task_record["id"],
-            "task_id": task_record["task_id"],
-            "task_type": task_record["task_type"],
-            "prompt": task_record["prompt"],
-            "image_urls": json.loads(task_record["image_urls"]) if task_record["image_urls"] else None,
-            "status": task_record["status"],
-            "progress": task_record["progress"],
-            "created_at": task_record["created_at"].isoformat() if task_record["created_at"] else None,
-            "started_at": task_record["started_at"],
-            "finished_at": task_record["finished_at"],
-            "model_urls": json.loads(task_record["model_urls"]) if task_record["model_urls"] else None,
-            "texture_urls": json.loads(task_record["texture_urls"]) if task_record["texture_urls"] else None,
-            "thumbnail_url": task_record["thumbnail_url"],
-            "preview_task_id": task_record["preview_task_id"],
-            "enable_pbr": task_record["enable_pbr"],
-            "texture_prompt": task_record["texture_prompt"],
-            "texture_image_url": task_record["texture_image_url"],
-            "ai_model": task_record["ai_model"],
-            # 新增字段
-            "seed": task_record["seed"],
-            "topology": task_record["topology"],
-            "target_polycount": task_record["target_polycount"],
-            "symmetry_mode": task_record["symmetry_mode"],
-            "is_a_t_pose": task_record["is_a_t_pose"]
-        }
+            return {
+                "task_id": task_id,
+                "status": "pending",
+                "message": "任务创建成功",
+                "progress": 0
+            }
+        except Exception as e:
+            logger.error(f"保存任务到数据库失败: {str(e)}", exc_info=True)
+            raise HTTPException(status_code=500, detail=f"保存任务失败: {str(e)}")
 
     except Exception as e:
-        logger.error(f"创建任务失败: {e}", exc_info=True)  # 添加 exc_info=True 获取完整堆栈
+        logger.error("创建任务失败:", exc_info=True)
         raise HTTPException(status_code=500, detail=str(e))
 
 @router.get("/tasks")
@@ -379,48 +435,98 @@ async def get_task_status(
         if not task:
             raise HTTPException(status_code=404, detail="任务不存在")
 
-        # 从Meshy获取最新状态
-        meshy_task = await meshy_client.get_task(task_id, task["task_type"])
+        # 如果任务已完成或失败，直接返回数据库中的状态
+        if task["status"] in ["completed", "failed"]:
+            return {
+                "id": task["id"],
+                "task_id": task["task_id"],
+                "task_type": task["task_type"],
+                "prompt": task["prompt"],
+                "image_urls": json.loads(task["image_urls"]) if task["image_urls"] else None,
+                "status": task["status"],
+                "progress": task.get("progress", 0),
+                "model_urls": json.loads(task["model_urls"]) if task["model_urls"] else None,
+                "texture_urls": json.loads(task["texture_urls"]) if task["texture_urls"] else None,
+                "thumbnail_url": task["thumbnail_url"],
+                "created_at": task["created_at"].isoformat() if task["created_at"] else None,
+                "started_at": task["started_at"],
+                "finished_at": task["finished_at"],
+                "task_error": task["task_error"]
+            }
+
+        # 对于进行中的任务，尝试从Meshy获取最新状态（带重试）
+        max_retries = 3
+        retry_delay = 2  # 秒
+        meshy_task = None
+        
+        for attempt in range(max_retries):
+            try:
+                meshy_task = await meshy_client.get_task(task_id, task["task_type"])
+                break  # 成功获取，跳出循环
+            except Exception as e:
+                logger.warning(f"获取Meshy任务状态失败 (尝试 {attempt + 1}/{max_retries}): {str(e)}")
+                if attempt < max_retries - 1:
+                    await asyncio.sleep(retry_delay)
+                else:
+                    # 最后一次尝试失败，返回数据库中的状态
+                    logger.error(f"多次尝试获取Meshy任务状态失败: {str(e)}")
+                    return {
+                        "id": task["id"],
+                        "task_id": task["task_id"],
+                        "task_type": task["task_type"],
+                        "prompt": task["prompt"],
+                        "image_urls": json.loads(task["image_urls"]) if task["image_urls"] else None,
+                        "status": task["status"],
+                        "progress": task.get("progress", 0),
+                        "model_urls": json.loads(task["model_urls"]) if task["model_urls"] else None,
+                        "texture_urls": json.loads(task["texture_urls"]) if task["texture_urls"] else None,
+                        "thumbnail_url": task["thumbnail_url"],
+                        "created_at": task["created_at"].isoformat() if task["created_at"] else None,
+                        "started_at": task["started_at"],
+                        "finished_at": task["finished_at"],
+                        "task_error": task["task_error"]
+                    }
         
         # 更新数据库中的任务状态
-        update_query = """
-            UPDATE generation_tasks
-            SET status = %s,
-                progress = %s,
-                model_urls = %s,
-                texture_urls = %s,
-                thumbnail_url = %s,
-                started_at = %s,
-                finished_at = %s,
-                task_error = %s
-            WHERE task_id = %s
-        """
-        update_values = (
-            meshy_task["status"],
-            meshy_task.get("progress", 0),
-            json.dumps(meshy_task.get("model_urls")) if meshy_task.get("model_urls") else None,
-            json.dumps(meshy_task.get("texture_urls")) if meshy_task.get("texture_urls") else None,
-            meshy_task.get("thumbnail_url"),
-            meshy_task.get("started_at"),
-            meshy_task.get("finished_at"),
-            meshy_task.get("task_error", {}).get("message", "") if meshy_task.get("task_error") else None,
-            task_id
-        )
-        await db.execute(update_query, update_values)
-
-        # 如果任务完成了，将其加入缓存
-        if meshy_task["status"] == "completed":
-            cache_service.cache_model(
-                prompt=task["prompt"],
-                style=task.get("art_style", ""),
-                model_file_path=meshy_task["model_urls"].get("glb", ""),
-                task_id=task_id,
-                additional_info={
-                    "created_at": task["created_at"].isoformat() if task["created_at"] else None,
-                    "model_urls": meshy_task.get("model_urls"),
-                    "thumbnail_url": meshy_task.get("thumbnail_url"),
-                }
+        if meshy_task:
+            update_query = """
+                UPDATE generation_tasks
+                SET status = %s,
+                    progress = %s,
+                    model_urls = %s,
+                    texture_urls = %s,
+                    thumbnail_url = %s,
+                    started_at = %s,
+                    finished_at = %s,
+                    task_error = %s
+                WHERE task_id = %s
+            """
+            update_values = (
+                meshy_task["status"],
+                meshy_task.get("progress", 0),
+                json.dumps(meshy_task.get("model_urls")) if meshy_task.get("model_urls") else None,
+                json.dumps(meshy_task.get("texture_urls")) if meshy_task.get("texture_urls") else None,
+                meshy_task.get("thumbnail_url"),
+                meshy_task.get("started_at"),
+                meshy_task.get("finished_at"),
+                meshy_task.get("task_error", {}).get("message", "") if meshy_task.get("task_error") else None,
+                task_id
             )
+            await db.execute(update_query, update_values)
+
+            # 如果任务完成了，将其加入缓存
+            if meshy_task["status"] == "completed":
+                cache_service.cache_model(
+                    prompt=task["prompt"],
+                    style=task.get("art_style", ""),
+                    model_file_path=meshy_task["model_urls"].get("glb", ""),
+                    task_id=task_id,
+                    additional_info={
+                        "created_at": task["created_at"].isoformat() if task["created_at"] else None,
+                        "model_urls": meshy_task.get("model_urls"),
+                        "thumbnail_url": meshy_task.get("thumbnail_url"),
+                    }
+                )
 
         # 返回更新后的任务信息
         return {
@@ -429,17 +535,19 @@ async def get_task_status(
             "task_type": task["task_type"],
             "prompt": task["prompt"],
             "image_urls": json.loads(task["image_urls"]) if task["image_urls"] else None,
-            "status": meshy_task["status"],
-            "progress": meshy_task.get("progress", 0),
-            "model_urls": meshy_task.get("model_urls"),
-            "texture_urls": meshy_task.get("texture_urls"),
-            "thumbnail_url": meshy_task.get("thumbnail_url"),
+            "status": meshy_task["status"] if meshy_task else task["status"],
+            "progress": meshy_task.get("progress", 0) if meshy_task else task.get("progress", 0),
+            "model_urls": meshy_task.get("model_urls") if meshy_task else (json.loads(task["model_urls"]) if task["model_urls"] else None),
+            "texture_urls": meshy_task.get("texture_urls") if meshy_task else (json.loads(task["texture_urls"]) if task["texture_urls"] else None),
+            "thumbnail_url": meshy_task.get("thumbnail_url") if meshy_task else task["thumbnail_url"],
             "created_at": task["created_at"].isoformat() if task["created_at"] else None,
-            "started_at": meshy_task.get("started_at"),
-            "finished_at": meshy_task.get("finished_at"),
-            "task_error": meshy_task.get("task_error", {}).get("message", "") if meshy_task.get("task_error") else None
+            "started_at": meshy_task.get("started_at") if meshy_task else task["started_at"],
+            "finished_at": meshy_task.get("finished_at") if meshy_task else task["finished_at"],
+            "task_error": meshy_task.get("task_error", {}).get("message", "") if meshy_task and meshy_task.get("task_error") else task["task_error"]
         }
 
+    except HTTPException:
+        raise
     except Exception as e:
         logger.error(f"获取任务状态失败: {e}")
         raise HTTPException(status_code=500, detail=str(e))
@@ -514,20 +622,46 @@ async def delete_task(task_id: str, current_user: dict = Depends(get_current_use
         raise HTTPException(status_code=500, detail=str(e))
 
 @router.post("/upload")
-async def upload_images(file: UploadFile = File(...), current_user: dict = Depends(get_current_user)) -> Dict[str, str]:
-    """上传图片并返回base64编码"""
+async def upload_images(
+    files: List[UploadFile] = File(...), 
+    current_user: dict = Depends(get_current_user)
+) -> Dict[str, Any]:
+    """上传图片并返回文件路径和base64编码"""
     try:
-        # 读取上传的文件内容
-        contents = await file.read()
-        
-        # 转换为base64
-        base64_image = base64.b64encode(contents).decode()
-        
-        return {"base64_image": f"data:image/{file.content_type.split('/')[-1]};base64,{base64_image}"}
+        results = []
+        for file in files:
+            # 读取文件内容
+            contents = await file.read()
+            
+            # 计算文件哈希作为文件名
+            file_hash = hashlib.md5(contents).hexdigest()
+            file_ext = os.path.splitext(file.filename)[1].lower()
+            if file_ext not in ['.jpg', '.jpeg', '.png']:
+                file_ext = '.jpg'
+            
+            file_name = f"{file_hash}{file_ext}"
+            file_path = Path("uploads") / file_name
+            
+            # 确保上传目录存在
+            file_path.parent.mkdir(parents=True, exist_ok=True)
+            
+            # 保存文件
+            with open(file_path, "wb") as f:
+                f.write(contents)
+            
+            # 转换为base64
+            base64_image = base64.b64encode(contents).decode()
+            
+            results.append({
+                "file_path": str(file_path),
+                "base64_image": f"data:image/{file.content_type.split('/')[-1]};base64,{base64_image}"
+            })
+            
+        return {"results": results}
         
     except Exception as e:
-        logger.error("上传图片失败: %s", str(e))
-        raise HTTPException(status_code=500, detail=str(e)) 
+        logger.error(f"上传图片失败: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
 
 @router.get("/proxy/model/{task_id}")
 async def proxy_model_file(task_id: str, current_user: dict = Depends(get_current_user)):
@@ -654,22 +788,31 @@ async def get_task_rating(
 ) -> Dict[str, Any]:
     """获取任务评分"""
     try:
-        # 检查任务是否存在且属于当前用户
-        rating = await db.fetch_one(
+        # 先检查任务是否存在且属于当前用户
+        task = await db.fetch_one(
             """
-            SELECT user_rating, rating_comment 
+            SELECT user_rating, rating_comment, status
             FROM generation_tasks 
             WHERE task_id = %s AND user_id = %s
             """,
             (task_id, current_user["user_id"])
         )
 
-        if not rating or rating["user_rating"] is None:
-            raise HTTPException(status_code=404, detail="未找到评分")
+        if not task:
+            raise HTTPException(status_code=404, detail="任务不存在或无权访问")
+
+        # 如果任务存在但没有评分，返回空的评分信息而不是404
+        if task["user_rating"] is None:
+            return {
+                "rating": None,
+                "comment": None,
+                "has_rating": False
+            }
 
         return {
-            "rating": float(rating["user_rating"]),
-            "comment": rating["rating_comment"] or ""
+            "rating": float(task["user_rating"]),
+            "comment": task["rating_comment"] or "",
+            "has_rating": True
         }
 
     except HTTPException:

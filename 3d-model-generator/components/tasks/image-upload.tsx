@@ -6,6 +6,7 @@ import { Button } from "@/components/ui/button"
 import { Card, CardContent } from "@/components/ui/card"
 import { Upload, X } from "lucide-react"
 import { cn } from "@/lib/utils"
+import { useToast } from "@/hooks/use-toast"
 
 interface ImageUploadProps {
   onUpload: (files: File[]) => void
@@ -28,30 +29,57 @@ export function ImageUpload({
   const [uploadedFiles, setUploadedFiles] = useState<File[]>([])
   const [previewUrls, setPreviewUrls] = useState<string[]>([])
   const fileInputRef = useRef<HTMLInputElement>(null)
+  const { toast } = useToast()
 
   const handleFiles = (files: FileList) => {
     const fileArray = Array.from(files)
-    const validFiles = fileArray.filter(
-      (file) => file.type.startsWith("image/") && file.size <= 10 * 1024 * 1024, // 10MB limit
+    const invalidFiles = fileArray.filter(
+      (file) => !file.type.startsWith("image/") || file.size > 10 * 1024 * 1024
     )
 
-    if (validFiles.length === 0) return
+    if (invalidFiles.length > 0) {
+      toast({
+        title: "文件无效",
+        description: "部分文件不符合要求：必须是图片且大小不超过10MB",
+        variant: "destructive",
+      })
+    }
+
+    const validFiles = fileArray.filter(
+      (file) => file.type.startsWith("image/") && file.size <= 10 * 1024 * 1024
+    )
+
+    if (validFiles.length === 0) {
+      toast({
+        title: "没有有效文件",
+        description: "请选择有效的图片文件（JPG、PNG格式，最大10MB）",
+        variant: "destructive",
+      })
+      return
+    }
 
     const filesToProcess = multiple ? validFiles.slice(0, maxFiles - uploadedFiles.length) : [validFiles[0]]
 
     // 创建预览URL
     const newPreviewUrls = filesToProcess.map((file) => URL.createObjectURL(file))
 
-        if (multiple) {
+    if (multiple) {
+      if (uploadedFiles.length + filesToProcess.length > maxFiles) {
+        toast({
+          title: "超出最大文件数",
+          description: `最多只能上传${maxFiles}张图片`,
+          variant: "destructive",
+        })
+      }
       setUploadedFiles((prev: File[]) => [...prev, ...filesToProcess])
       setPreviewUrls((prev: string[]) => [...prev, ...newPreviewUrls])
-        } else {
+    } else {
       // 清理之前的预览URL
       previewUrls.forEach(URL.revokeObjectURL)
       setUploadedFiles([filesToProcess[0]])
       setPreviewUrls([newPreviewUrls[0]])
-        }
-    
+    }
+
     onUpload(filesToProcess)
   }
 

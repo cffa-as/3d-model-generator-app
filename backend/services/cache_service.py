@@ -16,7 +16,14 @@ class ModelCacheService:
         self.cache_index = self._load_cache_index()
         
         # 初始化文本向量模型
-        self.model = SentenceModel()
+        try:
+            # 暂时禁用模型初始化，避免 PyTorch 错误
+            # self.model = SentenceModel()
+            self.model = None
+            logger.info("缓存服务初始化完成（模型加载已禁用）")
+        except Exception as e:
+            logger.error(f"缓存服务初始化失败: {e}")
+            self.model = None
     
     def _ensure_cache_dir(self):
         """确保缓存目录存在"""
@@ -43,12 +50,22 @@ class ModelCacheService:
 
     def _calculate_prompt_hash(self, prompt: str, style: str = "") -> str:
         """计算提示词的哈希值"""
+        # 处理 None 值
+        prompt = prompt or ""
+        style = style or ""
         content = f"{prompt.lower().strip()}_{style.lower().strip()}"
         return hashlib.md5(content.encode()).hexdigest()
 
     def _calculate_similarity(self, prompt1: str, prompt2: str) -> float:
         """计算两个提示词的相似度"""
         try:
+            if not self.model:
+                # 如果模型未加载，使用简单的字符串相似度
+                logger.debug("模型未加载，使用简单字符串比较")
+                if prompt1.lower().strip() == prompt2.lower().strip():
+                    return 1.0
+                return 0.0
+                
             # 使用text2vec计算语义相似度
             embeddings1 = self.model.encode([prompt1])
             embeddings2 = self.model.encode([prompt2])
@@ -132,7 +149,7 @@ class ModelCacheService:
             logger.error(f"查找相似模型时出错: {e}")
             return {"found": False}
 
-    def find_similar_models(self, prompt: str, style: str = "", similarity_threshold: float = 0.75, limit: int = 5) -> list:
+    def find_similar_models(self, prompt: str, style: str = "", similarity_threshold: float = 0.8, limit: int = 5) -> list:
         """查找多个相似的模型"""
         try:
             # 先打印缓存索引内容

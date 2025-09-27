@@ -126,6 +126,7 @@ export function TextGenerator({ onTaskCreated, mode = "preview", previewTaskId }
   const [isAtPose, setIsAtPose] = useState(false)
   
   const [isLoading, setIsLoading] = useState(false)
+  const [loadingState, setLoadingState] = useState<'idle' | 'checking-similarity' | 'generating'>('idle')
   const [similarModel, setSimilarModel] = useState<SimilarModelResult | null>(null)
   const [showSimilarDialog, setShowSimilarDialog] = useState(false)
   const [error, setError] = useState("")
@@ -139,6 +140,7 @@ export function TextGenerator({ onTaskCreated, mode = "preview", previewTaskId }
   // 修改检查相似模型的函数
   const checkSimilarModels = useCallback(async () => {
     try {
+      setLoadingState('checking-similarity')
       const result = await ApiService.checkSimilarModels({
         task_type: "text",
         prompt,
@@ -149,11 +151,14 @@ export function TextGenerator({ onTaskCreated, mode = "preview", previewTaskId }
         setSimilarModels(result.models)
         setCurrentModelIndex(0)
         setShowSimilarDialog(true)
+        setLoadingState('idle')
         return true
       }
+      setLoadingState('idle')
       return false
     } catch (error) {
       console.error("检查相似模型失败:", error)
+      setLoadingState('idle')
       return false
     }
   }, [prompt, artStyle])
@@ -186,6 +191,7 @@ export function TextGenerator({ onTaskCreated, mode = "preview", previewTaskId }
     }
 
     setIsLoading(true)
+    setLoadingState('generating')
     try {
       const result = await ApiService.createTask({
         task_type: "text",
@@ -231,6 +237,7 @@ export function TextGenerator({ onTaskCreated, mode = "preview", previewTaskId }
       })
     } finally {
       setIsLoading(false)
+      setLoadingState('idle')
       setShowSimilarDialog(false)
       setSimilarModel(null)
     }
@@ -585,14 +592,19 @@ export function TextGenerator({ onTaskCreated, mode = "preview", previewTaskId }
             {/* 提交按钮 */}
             <Button 
               type="submit" 
-              disabled={isLoading || !prompt.trim()} 
+              disabled={isLoading || !prompt.trim() || loadingState !== 'idle'} 
               onClick={handleGenerate}
               className="w-full"
             >
-              {isLoading ? (
+              {loadingState === 'checking-similarity' ? (
                 <>
                   <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                  生成中...
+                  检查相似度中...
+                </>
+              ) : loadingState === 'generating' ? (
+                <>
+                  <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                  生成模型中...
                 </>
               ) : (
                 <>
@@ -656,19 +668,29 @@ export function TextGenerator({ onTaskCreated, mode = "preview", previewTaskId }
             <Button
               variant="ghost"
               onClick={() => setShowSimilarDialog(false)}
+              disabled={loadingState !== 'idle'}
             >
               取消
             </Button>
             <Button
               variant="default"
               onClick={() => handleGenerateAnyway()}
+              disabled={loadingState !== 'idle'}
               className="bg-gradient-to-r from-blue-500 to-blue-600 hover:from-blue-600 hover:to-blue-700 text-white"
             >
-              继续生成新模型
+              {loadingState === 'generating' ? (
+                <>
+                  <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                  生成中...
+                </>
+              ) : (
+                "继续生成新模型"
+              )}
             </Button>
             <Button
               variant="outline"
               onClick={() => handleViewSimilar()}
+              disabled={loadingState !== 'idle'}
             >
               查看相似模型
             </Button>

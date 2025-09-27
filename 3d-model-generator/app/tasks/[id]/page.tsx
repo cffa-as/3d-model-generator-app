@@ -85,18 +85,28 @@ function TaskDetailPage() {
           setLoading(true)
         }
         setError("")
+        
+        // 持续尝试获取任务状态，直到成功
         const taskData = await ApiService.getTaskStatus(taskId)
-        console.log("任务数据:", taskData) // 添加调试日志
+        console.log("任务数据:", taskData)
         setTask(taskData)
+        
+        // 如果成功获取到任务数据，清除错误状态
+        setError("")
       } catch (err) {
-        setError(err instanceof Error ? err.message : "加载任务失败")
+        // 不设置错误状态，继续轮询
+        console.log("获取任务状态失败，继续重试:", err)
+        // 只有在初次加载时才显示错误
+        if (showLoading && !task) {
+          setError("正在等待任务准备就绪...")
+        }
       } finally {
         if (showLoading) {
           setLoading(false)
         }
       }
     },
-    [taskId],
+    [taskId], // 移除 task 依赖，避免循环依赖
   )
 
   const handleGenerateTexture = async () => {
@@ -201,13 +211,25 @@ function TaskDetailPage() {
     setIsPolling(true)
     const interval = setInterval(() => {
       loadTask(false) // 不显示加载状态
-    }, 3000) // 更频繁地更新
+    }, 3000) // 每3秒轮询一次
 
     return () => {
       clearInterval(interval)
       setIsPolling(false)
     }
-  }, [task, loadTask])
+  }, [task?.status, loadTask]) // 只依赖任务状态
+
+  // 如果没有任务数据，持续重试获取
+  useEffect(() => {
+    if (!task && user && taskId && !loading) {
+      const retryInterval = setInterval(() => {
+        console.log("任务数据为空，重试获取...")
+        loadTask(false)
+      }, 3000) // 每2秒重试一次
+
+      return () => clearInterval(retryInterval)
+    }
+  }, [!task, user, taskId, loading, loadTask]) // 修改依赖项
 
   // 加载评分
   const loadRating = useCallback(async () => {
@@ -290,14 +312,31 @@ function TaskDetailPage() {
     )
   }
 
-  if (loading || !task) {
+  if (loading && !task) {
     return (
       <div className="min-h-screen">
         <Navbar />
         <div className="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
           <div className="text-center py-12">
             <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary mx-auto mb-4"></div>
-            <p className="text-muted-foreground">加载任务详情中...</p>
+            <p className="text-muted-foreground">
+              {error || "加载任务详情中..."}
+            </p>
+          </div>
+        </div>
+      </div>
+    )
+  }
+
+  // 如果有任务数据，直接显示，即使还在加载中
+  if (!task) {
+    return (
+      <div className="min-h-screen">
+        <Navbar />
+        <div className="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+          <div className="text-center py-12">
+            <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary mx-auto mb-4"></div>
+            <p className="text-muted-foreground">正在等待任务准备就绪...</p>
           </div>
         </div>
       </div>
@@ -474,21 +513,6 @@ function TaskDetailPage() {
                 <RefreshCw className={cn("h-4 w-4 mr-2", isPolling && "animate-spin")} />
                 {isPolling ? "自动更新中..." : "刷新状态"}
               </Button>
-
-              {task.status === "completed" &&
-                !task.texture_urls &&
-                task.task_type === "text" &&
-                !task.preview_task_id && (
-                  <Button
-                    variant="default"
-                    onClick={handleGenerateTexture}
-                    disabled={isGeneratingTexture}
-                    className="w-full"
-                  >
-                    <Brush className="h-4 w-4 mr-2" />
-                    {isGeneratingTexture ? "生成贴图中..." : "生成贴图"}
-                  </Button>
-                )}
 
               {task.status === "completed" && task.task_type === "text" && !task.preview_task_id && (
                 <Button 

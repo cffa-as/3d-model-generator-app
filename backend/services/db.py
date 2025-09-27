@@ -40,13 +40,16 @@ class Database:
 
     @classmethod
     async def execute(cls, query: str, args: tuple = ()) -> int:
-        """执行SQL语句，返回影响的行数"""
+        """执行SQL语句，返回影响的行数或插入的ID"""
         try:
             pool = await cls.get_pool()
             async with pool.acquire() as conn:
                 async with conn.cursor() as cur:
                     await cur.execute(query, args)
                     await conn.commit()
+                    # 如果是INSERT语句，返回最后插入的ID
+                    if query.strip().upper().startswith('INSERT'):
+                        return cur.lastrowid
                     return cur.rowcount
         except Exception as e:
             logger.error("Failed to execute query: %s, args: %s, error: %s", query, args, str(e))

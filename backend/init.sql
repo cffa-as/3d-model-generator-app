@@ -1,10 +1,13 @@
+-- 删除数据库（如果存在）
+DROP DATABASE IF EXISTS model_generator;
+
 -- 创建数据库
-CREATE DATABASE IF NOT EXISTS model_generator DEFAULT CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;
+CREATE DATABASE model_generator DEFAULT CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;
 
 USE model_generator;
 
 -- 创建用户表
-CREATE TABLE IF NOT EXISTS users (
+CREATE TABLE users (
     id BIGINT AUTO_INCREMENT PRIMARY KEY,
     username VARCHAR(50) NOT NULL UNIQUE,
     password VARCHAR(100) NOT NULL,
@@ -14,13 +17,14 @@ CREATE TABLE IF NOT EXISTS users (
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
 
 -- 创建生成任务表
-CREATE TABLE IF NOT EXISTS generation_tasks (
+CREATE TABLE generation_tasks (
     id BIGINT AUTO_INCREMENT PRIMARY KEY,
     user_id BIGINT NOT NULL,
     task_id VARCHAR(100) NOT NULL UNIQUE,
     task_type ENUM('text', 'image', 'multi_image') NOT NULL,
     prompt TEXT,
     image_urls JSON,
+    original_image_url TEXT,  -- 存储原始图片文件路径，用于相似度检查
     status VARCHAR(20) NOT NULL DEFAULT 'pending',
     progress INT DEFAULT 0,
     model_urls JSON,
@@ -51,6 +55,7 @@ CREATE TABLE IF NOT EXISTS generation_tasks (
     rated_at TIMESTAMP DEFAULT NULL,
     
     -- 生成参数相关字段
+    ai_model VARCHAR(50),
     seed INTEGER,
     topology VARCHAR(10),
     target_polycount INTEGER,
@@ -58,16 +63,13 @@ CREATE TABLE IF NOT EXISTS generation_tasks (
     is_a_t_pose BOOLEAN,
     
     FOREIGN KEY (user_id) REFERENCES users(id),
-    FOREIGN KEY (preview_task_id) REFERENCES generation_tasks(task_id) ON DELETE CASCADE
+    INDEX idx_task_id (task_id),
+    INDEX idx_user_id (user_id),
+    INDEX idx_preview_task_id (preview_task_id)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
 
--- 添加索引
-CREATE INDEX idx_task_id ON generation_tasks(task_id);
-CREATE INDEX idx_user_id ON generation_tasks(user_id);
-CREATE INDEX idx_preview_task_id ON generation_tasks(preview_task_id);
-
 -- 创建评估详情表
-CREATE TABLE IF NOT EXISTS model_evaluations (
+CREATE TABLE model_evaluations (
     id BIGINT AUTO_INCREMENT PRIMARY KEY,
     task_id VARCHAR(255) NOT NULL,
     evaluation_date TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
@@ -105,7 +107,7 @@ CREATE TABLE IF NOT EXISTS model_evaluations (
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
 
 -- 创建模型展示表
-CREATE TABLE IF NOT EXISTS model_showcase (
+CREATE TABLE model_showcase (
     id BIGINT PRIMARY KEY AUTO_INCREMENT,
     user_id BIGINT NOT NULL,
     title VARCHAR(255) NOT NULL,
@@ -119,39 +121,40 @@ CREATE TABLE IF NOT EXISTS model_showcase (
     status VARCHAR(20) DEFAULT 'public',  -- public/private
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
-    FOREIGN KEY (user_id) REFERENCES users(id)
+    
+    FOREIGN KEY (user_id) REFERENCES users(id),
+    INDEX idx_model_showcase_user (user_id),
+    INDEX idx_model_showcase_category (category),
+    INDEX idx_model_showcase_status (status),
+    INDEX idx_model_showcase_created (created_at)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
 
 -- 创建点赞表
-CREATE TABLE IF NOT EXISTS model_likes (
+CREATE TABLE model_likes (
     id BIGINT PRIMARY KEY AUTO_INCREMENT,
     model_id BIGINT NOT NULL,
     user_id BIGINT NOT NULL,
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    
     FOREIGN KEY (model_id) REFERENCES model_showcase(id),
     FOREIGN KEY (user_id) REFERENCES users(id),
-    UNIQUE KEY unique_like (model_id, user_id)
+    UNIQUE KEY unique_like (model_id, user_id),
+    INDEX idx_model_likes_user (user_id)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
 
 -- 创建评论表
-CREATE TABLE IF NOT EXISTS model_comments (
+CREATE TABLE model_comments (
     id BIGINT PRIMARY KEY AUTO_INCREMENT,
     model_id BIGINT NOT NULL,
     user_id BIGINT NOT NULL,
     content TEXT NOT NULL,
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+    
     FOREIGN KEY (model_id) REFERENCES model_showcase(id),
-    FOREIGN KEY (user_id) REFERENCES users(id)
+    FOREIGN KEY (user_id) REFERENCES users(id),
+    INDEX idx_model_comments_user (user_id)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
-
--- 添加模型广场相关索引
-CREATE INDEX idx_model_showcase_user ON model_showcase(user_id);
-CREATE INDEX idx_model_showcase_category ON model_showcase(category);
-CREATE INDEX idx_model_showcase_status ON model_showcase(status);
-CREATE INDEX idx_model_showcase_created ON model_showcase(created_at);
-CREATE INDEX idx_model_likes_user ON model_likes(user_id);
-CREATE INDEX idx_model_comments_user ON model_comments(user_id);
 
 -- 插入默认管理员用户
 INSERT INTO users (username, password, email, is_admin)
