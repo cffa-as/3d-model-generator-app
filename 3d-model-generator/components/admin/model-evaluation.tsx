@@ -51,6 +51,8 @@ interface ModelEvaluation {
     }
     notes: string
   }[]
+  user_rating?: number // 新增用户评分
+  thumbnail_url?: string // 新增缩略图URL
 }
 
 interface EvaluationStats {
@@ -203,6 +205,8 @@ export function ModelEvaluation() {
           geometry_score: task.geometry_score,
           rendering_score: task.rendering_score,
           evaluation_history: task.evaluation_history,
+          user_rating: task.user_rating,
+          thumbnail_url: task.thumbnail_url || task.model_urls?.glb?.replace(/\.glb$/, '.jpg') || null
         }))
 
       setModels(modelData)
@@ -312,6 +316,8 @@ export function ModelEvaluation() {
           ...(model.evaluation_history || []),
           results.evaluation_history
         ],
+        user_rating: model.user_rating, // 保留原有的用户评分
+        thumbnail_url: model.thumbnail_url // 保留原有的缩略图
       }
 
       // 更新模型列表
@@ -749,31 +755,52 @@ export function ModelEvaluation() {
             </CardHeader>
             <CardContent>
               <div className="space-y-4">
-                {filteredModels.map((model) => (
+                {filteredModels
+                  .filter(model => model.user_rating !== null)
+                  .sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime())
+                  .slice(0, 5)
+                  .map((model) => (
                   <div
                     key={model.id}
                     className="flex items-center justify-between p-4 rounded-lg border border-border/50 hover:border-border transition-colors"
                   >
                     <div className="flex items-center gap-4">
-                      <div className="flex items-center gap-2">
-                        {getTaskTypeIcon(model.task_type)}
-                        <div>
-                          <p className="font-medium">{model.username}</p>
-                          <p className="text-sm text-muted-foreground">
-                            {getTaskTypeName(model.task_type)} • {model.task_id}
-                          </p>
-                        </div>
+                      {/* 预览图 */}
+                      <div className="w-16 h-16 rounded-lg overflow-hidden bg-muted flex-shrink-0">
+                        {model.thumbnail_url ? (
+                          <img
+                            src={model.thumbnail_url}
+                            alt={`${model.username}的模型`}
+                            className="w-full h-full object-cover"
+                          />
+                        ) : (
+                          <div className="w-full h-full flex items-center justify-center text-muted-foreground">
+                            <ImageIcon className="h-6 w-6" />
+                          </div>
+                        )}
                       </div>
-                      <div className="flex items-center gap-2 text-sm text-muted-foreground">
-                        <Calendar className="h-4 w-4" />
-                        {new Date(model.created_at).toLocaleDateString("zh-CN")}
+                      {/* 标题和任务信息 */}
+                      <div className="flex items-center gap-6 min-w-0">
+                        <div className="flex items-center gap-2 w-[240px]">
+                          {getTaskTypeIcon(model.task_type)}
+                          <div className="truncate">
+                            <p className="font-medium truncate">{model.username}</p>
+                            <p className="text-sm text-muted-foreground truncate">
+                              {getTaskTypeName(model.task_type)} • {model.task_id}
+                            </p>
+                          </div>
+                        </div>
+                        <div className="flex items-center gap-2 text-sm text-muted-foreground whitespace-nowrap">
+                          <Calendar className="h-4 w-4" />
+                          {new Date(model.created_at).toLocaleDateString("zh-CN")}
+                        </div>
                       </div>
                     </div>
 
                     <div className="flex items-center gap-4">
                       {model.status === "evaluated" ? (
                         <div className="flex items-center gap-2">
-                          <div className="text-sm">
+                          <div className="text-sm whitespace-nowrap">
                             <span className={`font-medium ${getScoreColor(model.topology_score || 0)}`}>
                               拓扑: {model.topology_score?.toFixed(1)}
                             </span>
@@ -785,6 +812,14 @@ export function ModelEvaluation() {
                             <span className={`font-medium ${getScoreColor(model.rendering_score || 0)}`}>
                               渲染: {model.rendering_score?.toFixed(1)}
                             </span>
+                            {model.user_rating !== null && (
+                              <>
+                                <span className="mx-2">•</span>
+                                <span className="font-medium text-yellow-400">
+                                  用户评分: {Number(model.user_rating).toFixed(1)}
+                                </span>
+                              </>
+                            )}
                           </div>
                           <Badge variant="secondary" className="bg-green-400/10 text-green-400">
                             <CheckCircle className="h-3 w-3 mr-1" />
@@ -792,17 +827,26 @@ export function ModelEvaluation() {
                           </Badge>
                         </div>
                       ) : (
-                        <Badge variant="secondary" className="bg-yellow-400/10 text-yellow-400">
-                          <Clock className="h-3 w-3 mr-1" />
-                          待评估
-                        </Badge>
+                        <div className="flex items-center gap-2">
+                          <Badge variant="secondary" className="bg-yellow-400/10 text-yellow-400">
+                            <Clock className="h-3 w-3 mr-1" />
+                            待评估
+                          </Badge>
+                          {model.user_rating !== null && (
+                            <div className="text-sm whitespace-nowrap">
+                              <span className="font-medium text-yellow-400">
+                                用户评分: {Number(model.user_rating).toFixed(1)}
+                              </span>
+                            </div>
+                          )}
+                        </div>
                       )}
 
                       <div className="flex items-center gap-2">
                         <Button variant="outline" size="sm" asChild>
                           <Link href={`/tasks/${model.task_id}`}>
-                          <Eye className="h-4 w-4 mr-1" />
-                          查看
+                            <Eye className="h-4 w-4 mr-1" />
+                            查看
                           </Link>
                         </Button>
                         <Button 

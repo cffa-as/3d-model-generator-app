@@ -13,10 +13,16 @@ import { Badge } from "@/components/ui/badge"
 import { useToast } from "@/hooks/use-toast"
 import { ApiService, API_BASE_URL } from "@/lib/api"
 import { ThreeModelViewer } from "@/components/tasks/three-model-viewer"
-import { Heart, MessageCircle, Eye, Share2, Plus, Trophy, User } from "lucide-react"
+import { Heart, MessageCircle, Eye, Share2, Plus, Trophy, User, Trash2 } from "lucide-react"
 import { UploadModelDialog } from "@/components/showcase/upload-model-dialog"
 import { DesignerLeaderboard } from "@/components/showcase/designer-leaderboard";
 import { cn } from "@/lib/utils";
+
+interface User {
+  user_id: number;
+  username: string;
+  email?: string;
+}
 
 type SortByType = "latest" | "popular" | "likes"
 
@@ -62,6 +68,8 @@ function ShowcasePageContent() {
   const [isLeaderboardOpen, setIsLeaderboardOpen] = useState(false)
   const [designers, setDesigners] = useState([])
   const [isLeaderboardLoading, setIsLeaderboardLoading] = useState(false)
+  const [deleteDialog, setDeleteDialog] = useState(false)
+  const [modelToDelete, setModelToDelete] = useState<ShowcaseModel | null>(null)
 
   // 筛选状态
   const [searchTerm, setSearchTerm] = useState("")
@@ -90,6 +98,22 @@ function ShowcasePageContent() {
       loadPopularTags()
     }
   }, [user, categoryFilter, sortBy])
+
+  // 处理分类切换
+  const handleCategoryChange = (newCategory: string) => {
+    setPage(1)  // 重置页码
+    if (newCategory === categoryFilter) {
+      setCategoryFilter("all")
+    } else {
+      setCategoryFilter(newCategory)
+    }
+  }
+
+  // 处理普通分类切换
+  const handleNormalCategoryChange = (newCategory: string) => {
+    setPage(1)  // 重置页码
+    setCategoryFilter(newCategory)
+  }
 
   // 搜索和标签过滤效果
   useEffect(() => {
@@ -187,7 +211,11 @@ function ShowcasePageContent() {
       }
 
       // 构建查询参数
-      const queryParams = `page=${parseInt(page.toString())}&page_size=${parseInt('20')}&sort_by=${sortBy}${categoryFilter !== "all" && categoryFilter !== "liked" && categoryFilter !== "my" ? `&category=${categoryFilter}` : ""}`
+      const queryParams = `page=${parseInt(page.toString())}&page_size=${parseInt('20')}&sort_by=${sortBy}${
+        categoryFilter !== "all" && categoryFilter !== "liked" && categoryFilter !== "my" ? 
+        `&category=${categoryFilter}` : 
+        ""
+      }`
       const fullUrl = `${endpoint}?${queryParams}`
 
       console.log("发送请求:", {
@@ -345,6 +373,56 @@ function ShowcasePageContent() {
     loadComments(model.id)
   }
 
+  const handleDeleteModel = async (model: ShowcaseModel) => {
+    if (!user || model.user_id !== user.id) {
+      toast({
+        title: "权限不足",
+        description: "您只能删除自己的模型",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    setModelToDelete(model)
+    setDeleteDialog(true)
+  }
+
+  const confirmDelete = async () => {
+    if (!modelToDelete) return;
+
+    try {
+      const response = await fetch(`${API_BASE_URL}/showcase/models/${modelToDelete.id}`, {
+        method: "DELETE",
+        headers: ApiService.getAuthHeaders(),
+      });
+
+      if (response.ok) {
+        toast({
+          title: "删除成功",
+          description: "模型已删除",
+        });
+        setPage(1); // 重新加载第一页
+        loadModels();
+      } else {
+        const errorData = await response.json().catch(() => null);
+        const errorMessage = errorData?.detail?.[0]?.msg ||
+                           errorData?.detail ||
+                           `HTTP error! status: ${response.status}`;
+        throw new Error(errorMessage);
+      }
+    } catch (error) {
+      console.error("删除模型失败:", error);
+      toast({
+        title: "删除失败",
+        description: error instanceof Error ? error.message : "无法删除模型",
+        variant: "destructive",
+      });
+    } finally {
+      setDeleteDialog(false)
+      setModelToDelete(null)
+    }
+  }
+
   const formatDate = (dateString: string) => {
     return new Date(dateString).toLocaleDateString("zh-CN", {
       year: "numeric",
@@ -401,7 +479,7 @@ function ShowcasePageContent() {
                       "h-10 px-4 gap-2 font-medium transition-all duration-200",
                       categoryFilter === "liked" && "bg-primary text-primary-foreground hover:bg-primary/90"
                     )}
-                    onClick={() => setCategoryFilter(categoryFilter === "liked" ? "all" : "liked")}
+                    onClick={() => handleCategoryChange("liked")}
                   >
                     <Heart className={cn(
                       "h-4 w-4",
@@ -416,24 +494,12 @@ function ShowcasePageContent() {
                       "h-10 px-4 gap-2 font-medium transition-all duration-200",
                       categoryFilter === "my" && "bg-primary text-primary-foreground hover:bg-primary/90"
                     )}
-                    onClick={() => setCategoryFilter(categoryFilter === "my" ? "all" : "my")}
+                    onClick={() => handleCategoryChange("my")}
                   >
                     <User className="h-4 w-4" />
                     我的作品
                   </Button>
                 </div>
-                <Select value={categoryFilter} onValueChange={setCategoryFilter}>
-                  <SelectTrigger className="w-full md:w-40">
-                    <SelectValue placeholder="选择分类" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="all">全部分类</SelectItem>
-                    <SelectItem value="character">角色模型</SelectItem>
-                    <SelectItem value="scene">场景模型</SelectItem>
-                    <SelectItem value="prop">道具模型</SelectItem>
-                    <SelectItem value="other">其他</SelectItem>
-                  </SelectContent>
-                </Select>
                 <Select value={sortBy} onValueChange={(value: SortByType) => setSortBy(value)}>
                   <SelectTrigger className="w-full md:w-40">
                     <SelectValue placeholder="排序方式" />
@@ -444,6 +510,26 @@ function ShowcasePageContent() {
                     <SelectItem value="likes">最多点赞</SelectItem>
                   </SelectContent>
                 </Select>
+                <div className={cn("transition-all duration-200", 
+                  categoryFilter === "liked" || categoryFilter === "my" ? "opacity-50 pointer-events-none" : "opacity-100"
+                )}>
+                  <Select 
+                    value={categoryFilter} 
+                    onValueChange={handleNormalCategoryChange}
+                    disabled={categoryFilter === "liked" || categoryFilter === "my"}
+                  >
+                    <SelectTrigger className="w-full md:w-40">
+                      <SelectValue placeholder="选择分类" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="all">全部分类</SelectItem>
+                      <SelectItem value="character">角色模型</SelectItem>
+                      <SelectItem value="scene">场景模型</SelectItem>
+                      <SelectItem value="prop">道具模型</SelectItem>
+                      <SelectItem value="other">其他</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
               </div>
 
               {/* 热门标签 */}
@@ -512,9 +598,23 @@ function ShowcasePageContent() {
                     <div className="space-y-2">
                       <div className="flex items-start justify-between">
                         <h3 className="font-semibold truncate">{model.title}</h3>
-                        <Button variant="ghost" size="sm" onClick={() => router.push(`/showcase/${model.id}`)}>
-                          查看
-                        </Button>
+                        <div className="flex gap-2">
+                          {model.user_id === user?.id && (
+                            <Button 
+                              variant="destructive" 
+                              size="sm"
+                              onClick={(e) => {
+                                e.stopPropagation()
+                                handleDeleteModel(model)
+                              }}
+                            >
+                              <Trash2 className="h-4 w-4" />
+                            </Button>
+                          )}
+                          <Button variant="ghost" size="sm" onClick={() => router.push(`/showcase/${model.id}`)}>
+                            查看
+                          </Button>
+                        </div>
                       </div>
                       <p className="text-sm text-muted-foreground line-clamp-2">{model.description}</p>
                       <div className="flex items-center gap-2 text-sm text-muted-foreground">
@@ -575,6 +675,38 @@ function ShowcasePageContent() {
             loadModels()
           }}
         />
+
+        <Dialog open={deleteDialog} onOpenChange={setDeleteDialog}>
+          <DialogContent className="sm:max-w-md">
+            <DialogHeader>
+              <DialogTitle className="flex items-center gap-2 text-destructive">
+                <Trash2 className="h-5 w-5" />
+                确认删除
+              </DialogTitle>
+            </DialogHeader>
+            <div className="space-y-4">
+              <p className="text-sm text-muted-foreground">
+                您确定要删除模型 <span className="font-medium text-foreground">"{modelToDelete?.title}"</span> 吗？
+              </p>
+              <p className="text-sm text-destructive">此操作不可逆，删除后将无法恢复。</p>
+              <div className="flex justify-end gap-2">
+                <Button
+                  variant="outline"
+                  onClick={() => {
+                    setDeleteDialog(false)
+                    setModelToDelete(null)
+                  }}
+                >
+                  取消
+                </Button>
+                <Button variant="destructive" onClick={confirmDelete}>
+                  <Trash2 className="h-4 w-4 mr-2" />
+                  确认删除
+                </Button>
+              </div>
+            </div>
+          </DialogContent>
+        </Dialog>
       </div>
     </div>
   )

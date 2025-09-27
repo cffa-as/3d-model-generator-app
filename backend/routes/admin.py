@@ -84,12 +84,18 @@ async def get_all_tasks(current_user: dict = Depends(get_admin_user)) -> List[Di
                 t.topology_score,
                 t.geometry_score,
                 t.rendering_score,
-                t.evaluation_history
+                t.evaluation_history,
+                t.user_rating,
+                t.rating_comment,
+                t.rated_at,
+                t.thumbnail_url
             FROM generation_tasks t
             LEFT JOIN users u ON t.user_id = u.id
+            WHERE t.status = 'completed'  -- 只返回已完成的任务
             ORDER BY t.created_at DESC
         """
         tasks = await db.fetch_all(query)
+        logger.info(f"获取到 {len(tasks)} 个任务")
         
         # 处理JSON字段
         result = []
@@ -102,6 +108,9 @@ async def get_all_tasks(current_user: dict = Depends(get_admin_user)) -> List[Di
                         task_dict[field] = json.loads(task_dict[field])
                     except:
                         task_dict[field] = None
+            
+            # 记录评分信息
+            logger.info(f"任务 {task_dict['task_id']} - 评分: {task_dict.get('user_rating')}, 状态: {task_dict['status']}")
             result.append(task_dict)
             
         return result
@@ -676,6 +685,44 @@ async def export_evaluation_report(current_user: dict = Depends(get_admin_user))
 
     except Exception as e:
         logger.error("导出评估报告失败: %s", str(e))
+        raise HTTPException(status_code=500, detail=str(e))
+
+@router.get("/tasks/debug")
+async def debug_tasks(current_user: dict = Depends(get_admin_user)) -> Dict[str, Any]:
+    """调试任务数据"""
+    try:
+        # 检查所有任务的状态分布
+        status_query = """
+            SELECT status, COUNT(*) as count
+            FROM generation_tasks
+            GROUP BY status
+        """
+        status_stats = await db.fetch_all(status_query)
+        
+        # 检查评分分布
+        rating_query = """
+            SELECT 
+                COUNT(*) as total_tasks,
+                COUNT(user_rating) as rated_tasks,
+                AVG(user_rating) as avg_rating
+            FROM generation_tasks
+            WHERE status = 'completed'
+        """
+        rating_stats = await db.fetch_one(rating_query)
+        
+        return {
+            "status_distribution": {
+                stat["status"]: stat["count"] for stat in status_stats
+            },
+            "rating_stats": {
+                "total_completed": rating_stats["total_tasks"],
+                "total_rated": rating_stats["rated_tasks"],
+                "average_rating": float(rating_stats["avg_rating"]) if rating_stats["avg_rating"] else None
+            }
+        }
+
+    except Exception as e:
+        logger.error("获取调试数据失败: %s", str(e))
         raise HTTPException(status_code=500, detail=str(e))
 
 def evaluate_topology(mesh: trimesh.Scene) -> float:

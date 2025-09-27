@@ -45,6 +45,11 @@ CREATE TABLE IF NOT EXISTS generation_tasks (
     rendering_score DECIMAL(4,2) NULL,
     evaluation_history JSON,
     
+    -- 用户评分相关字段
+    user_rating DECIMAL(3,1) DEFAULT NULL CHECK (user_rating >= 0 AND user_rating <= 10),
+    rating_comment TEXT DEFAULT NULL,
+    rated_at TIMESTAMP DEFAULT NULL,
+    
     -- 生成参数相关字段
     seed INTEGER,
     topology VARCHAR(10),

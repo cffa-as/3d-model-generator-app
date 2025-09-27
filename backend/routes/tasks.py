@@ -1,5 +1,5 @@
-from fastapi import APIRouter, Depends, HTTPException, UploadFile, File, Response
-from typing import Dict, Any, List
+from fastapi import APIRouter, Depends, HTTPException, UploadFile, File, Response, Query
+from typing import Dict, Any, List, Optional
 import base64
 import json
 import logging
@@ -13,6 +13,7 @@ import hashlib
 from pathlib import Path
 from starlette.responses import FileResponse
 import asyncio
+from datetime import datetime
 
 # 配置日志
 logger = logging.getLogger(__name__)
@@ -521,4 +522,79 @@ async def proxy_model_file(task_id: str, current_user: dict = Depends(get_curren
 
     except Exception as e:
         logger.error(f"代理模型文件失败: {str(e)}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+@router.post("/{task_id}/rate", tags=["tasks"])
+async def rate_task(
+    task_id: str,
+    rating: Dict[str, Any],
+    current_user: dict = Depends(get_current_user)
+) -> Dict[str, Any]:
+    """为任务评分"""
+    try:
+        # 验证评分范围
+        user_rating = float(rating.get("rating", 0))
+        if not 0 <= user_rating <= 10:
+            raise HTTPException(status_code=400, detail="评分必须在0到10之间")
+
+        # 检查任务是否存在且属于当前用户
+        task = await db.fetch_one(
+            "SELECT user_id, status FROM generation_tasks WHERE task_id = %s",
+            (task_id,)
+        )
+
+        if not task:
+            raise HTTPException(status_code=404, detail="任务不存在")
+        
+        if task["user_id"] != current_user["user_id"]:
+            raise HTTPException(status_code=403, detail="无权为此任务评分")
+
+        if task["status"] != "completed":
+            raise HTTPException(status_code=400, detail="只能为已完成的任务评分")
+
+        # 更新评分
+        await db.execute(
+            """
+            UPDATE generation_tasks 
+            SET user_rating = %s, rating_comment = %s, rated_at = CURRENT_TIMESTAMP
+            WHERE task_id = %s
+            """,
+            (user_rating, rating.get("comment"), task_id)
+        )
+
+        return {"message": "评分成功"}
+
+    except Exception as e:
+        logger.error("评分失败: %s", str(e))
+        raise HTTPException(status_code=500, detail=str(e))
+
+@router.get("/{task_id}/rating", tags=["tasks"])
+async def get_task_rating(
+    task_id: str,
+    current_user: dict = Depends(get_current_user)
+) -> Dict[str, Any]:
+    """获取任务评分"""
+    try:
+        # 检查任务是否存在且属于当前用户
+        rating = await db.fetch_one(
+            """
+            SELECT user_rating, rating_comment 
+            FROM generation_tasks 
+            WHERE task_id = %s AND user_id = %s
+            """,
+            (task_id, current_user["user_id"])
+        )
+
+        if not rating or rating["user_rating"] is None:
+            raise HTTPException(status_code=404, detail="未找到评分")
+
+        return {
+            "rating": float(rating["user_rating"]),
+            "comment": rating["rating_comment"] or ""
+        }
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error("获取评分失败: %s", str(e))
         raise HTTPException(status_code=500, detail=str(e))

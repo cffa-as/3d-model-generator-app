@@ -26,6 +26,13 @@ import {
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog"
 import { Alert, AlertDescription } from "@/components/ui/alert"
+import { ModelRating } from "@/components/tasks/model-rating"
+import { Star } from "lucide-react"
+import {
+  HoverCard,
+  HoverCardContent,
+  HoverCardTrigger,
+} from "@/components/ui/hover-card"
 
 interface TaskStatus {
   id: number
@@ -68,6 +75,8 @@ function TaskDetailPage() {
   const [isDeleting, setIsDeleting] = useState(false)
   const [showDeleteDialog, setShowDeleteDialog] = useState(false)
   const [showRefineDialog, setShowRefineDialog] = useState(false)
+  const [rating, setRating] = useState<{ rating: number; comment: string } | null>(null)
+  const [isLoadingRating, setIsLoadingRating] = useState(false)
 
   const loadTask = useCallback(
     async (showLoading = true) => {
@@ -199,6 +208,31 @@ function TaskDetailPage() {
       setIsPolling(false)
     }
   }, [task, loadTask])
+
+  // 加载评分
+  const loadRating = useCallback(async () => {
+    try {
+      setIsLoadingRating(true)
+      const rating = await ApiService.getModelRating(taskId)
+      setRating(rating)
+    } catch (error) {
+      console.error("加载评分失败:", error)
+    } finally {
+      setIsLoadingRating(false)
+    }
+  }, [taskId])
+
+  useEffect(() => {
+    if (task?.status === "completed") {
+      loadRating()
+    }
+  }, [task?.status, loadRating])
+
+  const handleRatingSubmitted = useCallback(async () => {
+    // 短暂延迟以确保后端数据已更新
+    await new Promise(resolve => setTimeout(resolve, 500))
+    await loadRating()
+  }, [loadRating])
 
   const formatDate = (dateString: string) => {
     return new Date(dateString).toLocaleString("zh-CN")
@@ -397,33 +431,34 @@ function TaskDetailPage() {
                       if (!url) return null
 
                       return (
-                        <Button
-                          key={key}
-                          variant="outline"
-                          size="sm"
-                          onClick={() => downloadModel(url, `texture_${key}.jpg`)}
-                          className="text-xs hover:bg-blue-50 hover:text-blue-600 cursor-pointer transition-colors"
-                        >
-                          <Download className="h-3 w-3 mr-1" />
-                          {label}
-                        </Button>
+                        <HoverCard key={key} openDelay={200}>
+                          <HoverCardTrigger asChild>
+                            <Button
+                              variant="outline"
+                              size="sm"
+                              onClick={() => downloadModel(url, `texture_${key}.jpg`)}
+                              className="text-xs hover:bg-blue-50 hover:text-blue-600 cursor-pointer transition-colors"
+                            >
+                              <Download className="h-3 w-3 mr-1" />
+                              {label}
+                            </Button>
+                          </HoverCardTrigger>
+                          <HoverCardContent className="w-80 p-0">
+                            <div className="relative">
+                              <img
+                                src={url}
+                                alt={`${label} 贴图`}
+                                className="w-full rounded-md"
+                              />
+                              <div className="absolute inset-x-0 bottom-0 bg-gradient-to-t from-black/60 to-transparent p-2">
+                                <p className="text-xs text-white font-medium">{label} 贴图预览</p>
+                              </div>
+                            </div>
+                          </HoverCardContent>
+                        </HoverCard>
                       )
                     })}
                   </div>
-
-                  {/* 贴图预览 */}
-                  {activeTexture && task.texture_urls?.[0]?.[activeTexture as keyof (typeof task.texture_urls)[0]] && (
-                    <div className="mt-3">
-                      <img
-                        src={
-                          task.texture_urls[0][activeTexture as keyof (typeof task.texture_urls)[0]] ||
-                          "/placeholder.svg"
-                        }
-                        alt={`${activeTexture} 贴图`}
-                        className="w-full h-32 object-cover rounded-lg border border-border/50"
-                      />
-                    </div>
-                  )}
                 </CardContent>
               </Card>
             )}
@@ -530,16 +565,68 @@ function TaskDetailPage() {
               <Alert variant="default" className="bg-muted/50">
                 <Info className="h-4 w-4" />
                 <AlertDescription>
-                  在3D预览模式下：
-                  <ul className="list-disc list-inside mt-2 space-y-1 text-sm">
-                    <li>左键拖动：旋转模型</li>
-                    <li>右键拖动：平移视角</li>
-                    <li>滚轮：缩放模型</li>
-                    <li>点击全屏按钮可以获得更好的查看体验</li>
-                    <li>点击调色板按钮可以更换背景颜色</li>
-                  </ul>
+                  <div className="text-sm space-y-1">
+                    <p>操作方式：左键旋转 · 右键平移 · 滚轮缩放</p>
+                    <p>点击右上角按钮可切换全屏和背景颜色</p>
+                  </div>
                 </AlertDescription>
               </Alert>
+            )}
+
+            {/* 评分区域 */}
+            {task.status === "completed" && !rating?.rating && (
+              <Card className="glass">
+                <CardHeader>
+                  <CardTitle>模型评分</CardTitle>
+                </CardHeader>
+                <CardContent>
+                  {isLoadingRating ? (
+                    <div className="text-center py-4">
+                      <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary mx-auto"></div>
+                      <p className="text-sm text-muted-foreground mt-2">加载评分中...</p>
+                    </div>
+                  ) : (
+                    <ModelRating
+                      taskId={task.task_id}
+                      initialRating={rating?.rating}
+                      initialComment={rating?.comment}
+                      onRatingSubmitted={handleRatingSubmitted}
+                    />
+                  )}
+                </CardContent>
+              </Card>
+            )}
+
+            {/* 已评分显示 */}
+            {task.status === "completed" && rating?.rating && (
+              <Card className="glass">
+                <CardHeader>
+                  <CardTitle>您的评分</CardTitle>
+                </CardHeader>
+                <CardContent>
+                  <div className="flex items-center gap-1">
+                    {[...Array(10)].map((_, i) => (
+                      <Star
+                        key={i}
+                        className={cn(
+                          "h-5 w-5",
+                          i < rating.rating
+                            ? "fill-yellow-400 text-yellow-400"
+                            : "text-muted-foreground"
+                        )}
+                      />
+                    ))}
+                    <span className="ml-2 text-sm text-muted-foreground">
+                      {rating.rating} 分
+                    </span>
+                  </div>
+                  {rating.comment && (
+                    <p className="mt-2 text-sm text-muted-foreground">
+                      {rating.comment}
+                    </p>
+                  )}
+                </CardContent>
+              </Card>
             )}
           </div>
         </div>
