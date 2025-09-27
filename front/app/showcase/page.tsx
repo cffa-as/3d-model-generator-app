@@ -218,10 +218,7 @@ function ShowcasePageContent() {
       }`
       const fullUrl = `${endpoint}?${queryParams}`
 
-      console.log("发送请求:", {
-        url: fullUrl,
-        headers: ApiService.getAuthHeaders()
-      })
+
 
       const response = await fetch(fullUrl, {
         headers: ApiService.getAuthHeaders(),

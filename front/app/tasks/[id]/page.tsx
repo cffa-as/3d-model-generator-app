@@ -92,7 +92,7 @@ function TaskDetailPage() {
     async (showLoading = true) => {
       // 防止重复请求
       if (isRequestInProgress) {
-        console.log("请求进行中，跳过...")
+
         return
       }
 
@@ -104,9 +104,9 @@ function TaskDetailPage() {
         setError("")
         
         // 持续尝试获取任务状态，直到成功
-        console.log("🔍 loadTask 被调用，来源:", new Error().stack?.split('\n')[2])
+
         const taskData = await ApiService.getTaskStatus(taskId)
-        console.log("📊 任务状态:", taskData.status)
+
         
         setTask(taskData)
         
@@ -115,7 +115,7 @@ function TaskDetailPage() {
         setIsInitialLoad(false)
         setInitialLoadAttempts(0)
       } catch (err) {
-        console.log("获取任务状态失败，继续重试:", err)
+
         
         // 更新尝试次数
         if (isInitialLoad) {
@@ -233,7 +233,7 @@ function TaskDetailPage() {
 
   useEffect(() => {
     if (user && taskId) {
-      console.log("🚀 初始加载任务")
+      
       loadTaskRef.current?.()
     }
   }, [user, taskId])
@@ -259,15 +259,14 @@ function TaskDetailPage() {
 
     // 只有当任务状态为 pending 时才启动轮询
     if (task && task.status === "pending") {
-      console.log("开始轮询pending任务:", task.task_id)
+
       setIsPolling(true)
        
-      intervalRef.current = setInterval(() => {
-        console.log("轮询中...")
-        loadTaskRef.current?.(false) // 不显示加载状态
-      }, 5000) // 每5秒轮询一次
+              intervalRef.current = setInterval(() => {
+          loadTaskRef.current?.(false) // 不显示加载状态
+        }, 5000) // 每5秒轮询一次
     } else {
-      console.log("停止轮询，任务状态:", task?.status || "无任务")
+      
       setIsPolling(false)
     }
 

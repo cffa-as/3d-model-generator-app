@@ -52,7 +52,7 @@ export default function EvaluationPage() {
     try {
       setLoading(true)
       const data = await ApiService.getAdminTasks()
-      console.log("加载的任务数据:", data)
+      
       setTasks(data)
     } catch (error) {
       console.error("加载任务失败:", error)
