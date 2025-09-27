@@ -16,7 +16,13 @@ logger = logging.getLogger(__name__)
 logging.getLogger('services.storage').setLevel(logging.DEBUG)
 logging.getLogger('routes.tasks').setLevel(logging.DEBUG)
 
-app = FastAPI()
+app = FastAPI(
+    title="3D模型创作平台 API",
+    description="基于AI技术的3D模型生成和管理平台",
+    version="1.0.0",
+    docs_url="/docs",
+    redoc_url="/redoc"
+)
 
 # 添加CORS中间件
 app.add_middleware(
@@ -39,10 +45,10 @@ async def validation_exception_handler(request: Request, exc: RequestValidationE
     )
 
 # 注册路由
-app.include_router(users.router, prefix="/api")
-app.include_router(tasks.router, prefix="/api/tasks")
-app.include_router(admin.router, prefix="/api/admin")
-app.include_router(showcase.router, prefix="/api/showcase")
+app.include_router(users.router, prefix="/api", tags=["用户管理"])
+app.include_router(tasks.router, prefix="/api/tasks", tags=["任务管理"])
+app.include_router(admin.router, prefix="/api/admin", tags=["管理员"])
+app.include_router(showcase.router, prefix="/api/showcase", tags=["模型展示"])
 
 @app.get("/")
 async def root():

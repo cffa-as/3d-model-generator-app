@@ -1,118 +1,80 @@
-# AI 3D模型生成器
+# 七牛云校招项目-3D模型创作平台
 
-基于 AI 技术的智能3D模型生成应用，支持多种生成方式和高质量模型输出。
+## 如何运行程序
 
-## 功能特点
+### 环境准备
+1. **安装 Node.js 18+** - [下载地址](https://nodejs.org/)
+2. **安装 Python 3.8+** - [下载地址](https://python.org/)
+3. **安装 MySQL 8.0+** - [下载地址](https://dev.mysql.com/downloads/)
+4. **获取 AI API 密钥** - 需要 Meshy AI API Key
 
-- 🎨 **文本生成3D**：通过文字描述智能生成3D模型
-- 📸 **图片生成3D**：从单张图片快速生成3D模型
-- 🖼️ **多图生成**：支持多角度图片生成更精确的模型
-- 💎 **高质量输出**：
-  - 优化的拓扑结构
-  - 自动UV展开
-  - PBR材质支持
-  - 骨骼动画支持
-- 🎯 **模型评估**：
-  - 拓扑结构质量评估
-  - 几何准确度评估
-  - 渲染效率评估
-- 🔄 **多格式支持**：
-  - GLB/GLTF
-  - FBX
-  - OBJ
-  - USDZ
-- 📊 **实时监控**：
-  - 生成进度跟踪
-  - 实时预览
-  - 质量评估反馈
-- 👥 **用户管理**：
-  - 用户认证
-  - 任务历史
-  - 收藏夹
-
-## 技术栈
-
-### 前端
-- Next.js 14 (App Router)
-- React
-- TypeScript
-- Tailwind CSS
-- Shadcn/ui 组件库
-- Three.js 模型预览
-- Lucide Icons 图标
-
-### 后端
-- Python 3.8+
-- FastAPI
-- MySQL 8.0+
-- JWT 认证
-- AI 模型集成
-
-## 环境要求
-
-- Node.js 18+
-- Python 3.8+
-- MySQL 8.0+
-- AI API 密钥
-
-## 快速开始
-
-### 前端启动
+### 数据库初始化
 ```bash
-# 安装依赖
-cd 3d-model-generator
-npm install
+# 登录 MySQL
+mysql -u root -p
 
-# 配置环境变量
-cp .env.example .env.local
-# 编辑 .env.local 填入必要配置
+# 执行初始化脚本
+source backend/init.sql
 
-# 启动开发服务器
-npm run dev
+# 或者直接导入
+mysql -u root -p < backend/init.sql
 ```
 
 ### 后端启动
 ```bash
-# 安装依赖
+# 进入后端目录
 cd backend
+
+# 创建虚拟环境（推荐）
+python -m venv venv
+
+# 激活虚拟环境
+# Windows:
+venv\Scripts\activate
+# Linux/Mac:
+source venv/bin/activate
+
+# 安装依赖
 pip install -r requirements.txt
 
-# 配置
+# 配置文件
 cp config.yaml.template config.yaml
-# 编辑 config.yaml 填入必要配置
 
-# 初始化数据库
-mysql -u root -p < init.sql
+# 编辑 config.yaml，填入以下必要配置：
+# - database: MySQL连接信息
+# - meshy_api_key: AI API密钥
+# - jwt_secret: JWT密钥（随机字符串）
 
-# 启动服务
-uvicorn main:app --reload
+# 启动后端服务
+python main.py
+
+# 或使用 uvicorn
+uvicorn main:app --host 0.0.0.0 --port 8000 --reload
 ```
 
-## 主要功能展示
+### 前端启动
+```bash
+# 进入前端目录
+cd front
 
-### 模型生成
-- 支持文本描述生成
-- 支持单图/多图生成
-- 实时进度反馈
-- 模型质量评估
+# 安装依赖
+npm install
+# 或使用 pnpm
+pnpm install
 
-### 模型预览
-- 3D 实时预览
-- 材质和贴图展示
-- 多角度查看
-- 动画预览
+# 配置环境变量（可选）
+# 创建 .env.local 文件，添加：
+# NEXT_PUBLIC_API_URL=http://localhost:8000/api
 
-### 模型导出
-- 多格式导出支持
-- 批量导出
-- 自定义导出设置
+# 构建生产版本（推荐，因为资源多，开发环境较慢）
+npm run build
+npm start
 
-### 管理功能
-- 用户管理
-- 任务管理
-- 系统监控
-- 数据统计
+# 或者启动开发服务器（较慢）
+# npm run dev
+```
 
-## API 文档
-
-启动后端服务后，访问 [API文档](http://localhost:8000/docs) 查看详细API说明。
+### 访问应用
+- **前端应用**: http://localhost:3000
+- **后端API**: http://localhost:8000
+- **API文档**: http://localhost:8000/docs
