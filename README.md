@@ -1,4 +1,4 @@
-# 七牛云校招项目-3D模型创作平台
+# 七牛云校招项目-3D模型AI创作平台
 
 ## 如何运行程序
 
@@ -6,7 +6,7 @@
 1. **安装 Node.js 18+** - [下载地址](https://nodejs.org/)
 2. **安装 Python 3.8+** - [下载地址](https://python.org/)
 3. **安装 MySQL 8.0+** - [下载地址](https://dev.mysql.com/downloads/)
-4. **获取 AI API 密钥** - 需要 Meshy AI API Key
+4. **获取 API 密钥** - 需要 Meshy API Key
 
 ### 数据库初始化
 ```bash
