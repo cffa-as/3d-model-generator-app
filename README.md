@@ -38,7 +38,10 @@ source venv/bin/activate
 pip install -r requirements.txt
 
 # 配置文件
-cp config.yaml.template config.yaml
+# Windows:
+copy config.yaml.template config.yaml
+# Linux/Mac:
+# cp config.yaml.template config.yaml
 
 # 编辑 config.yaml，填入以下必要配置：
 # - database: MySQL连接信息
