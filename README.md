@@ -71,6 +71,5 @@ npm start
 ```
 
 ### 访问应用
-- **前端应用**: http://localhost:3000
-- **后端API**: http://localhost:8000
+- **访问应用**: http://localhost:3000
 - **API文档**: http://localhost:8000/docs
