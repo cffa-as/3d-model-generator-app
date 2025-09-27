@@ -12,6 +12,7 @@ import os
 import hashlib
 from pathlib import Path
 from starlette.responses import FileResponse
+import asyncio
 
 # 配置日志
 logger = logging.getLogger(__name__)
@@ -451,6 +452,26 @@ async def upload_images(file: UploadFile = File(...), current_user: dict = Depen
 @router.get("/proxy/model/{task_id}")
 async def proxy_model_file(task_id: str, current_user: dict = Depends(get_current_user)):
     """代理加载3D模型文件"""
+    max_retries = 3  # 最大重试次数
+    retry_delay = 1  # 重试间隔（秒）
+    
+    async def download_with_retry(url: str, retries: int = max_retries) -> bytes:
+        """带重试机制的文件下载"""
+        last_error = None
+        for attempt in range(retries):
+            try:
+                async with httpx.AsyncClient() as client:
+                    response = await client.get(url)
+                    if response.status_code == 200:
+                        return response.content
+                    last_error = f"HTTP {response.status_code}"
+            except Exception as e:
+                last_error = str(e)
+                if attempt < retries - 1:  # 如果不是最后一次尝试
+                    await asyncio.sleep(retry_delay)  # 等待一段时间后重试
+                continue
+        raise Exception(f"下载失败（重试{retries}次）: {last_error}")
+
     try:
         # 从数据库获取任务
         query = """
@@ -481,14 +502,12 @@ async def proxy_model_file(task_id: str, current_user: dict = Depends(get_curren
                 filename=f"{task_id}.glb"
             )
 
-        # 下载文件
-        async with httpx.AsyncClient() as client:
-            response = await client.get(glb_url)
-            if response.status_code != 200:
-                raise HTTPException(status_code=response.status_code, detail="获取模型文件失败")
-
+        # 下载文件（带重试）
+        try:
+            content = await download_with_retry(glb_url)
+            
             # 保存到缓存
-            cache_file.write_bytes(response.content)
+            cache_file.write_bytes(content)
 
             # 返回文件
             return FileResponse(
@@ -496,6 +515,9 @@ async def proxy_model_file(task_id: str, current_user: dict = Depends(get_curren
                 media_type="model/gltf-binary",
                 filename=f"{task_id}.glb"
             )
+        except Exception as e:
+            logger.error(f"下载模型文件失败: {str(e)}")
+            raise HTTPException(status_code=500, detail=f"下载模型文件失败: {str(e)}")
 
     except Exception as e:
         logger.error(f"代理模型文件失败: {str(e)}")

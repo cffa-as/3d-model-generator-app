@@ -106,8 +106,8 @@ export function MultiImageGenerator({ onTaskCreated }: MultiImageGeneratorProps)
       <CardHeader>
         <CardTitle className="flex items-center justify-between">
           <div className="flex items-center gap-2">
-            <Images className="h-5 w-5 text-primary" />
-            多图生成3D模型
+          <Images className="h-5 w-5 text-primary" />
+          多图生成3D模型
           </div>
           <Button
             variant="outline"
@@ -275,28 +275,28 @@ export function MultiImageGenerator({ onTaskCreated }: MultiImageGeneratorProps)
                   </div>
                   <Switch
                     id="should-remesh"
-                    checked={shouldRemesh}
-                    onCheckedChange={setShouldRemesh}
-                    disabled={isLoading}
-                  />
-                </div>
+                  checked={shouldRemesh}
+                  onCheckedChange={setShouldRemesh}
+                  disabled={isLoading}
+                />
+              </div>
 
-                <div className="flex items-center justify-between">
-                  <div className="space-y-1">
+              <div className="flex items-center justify-between">
+                <div className="space-y-1">
                     <Label htmlFor="is-a-t-pose">A/T Pose</Label>
                     <p className="text-xs text-muted-foreground">
                       生成标准的A/T Pose姿态的模型
                     </p>
-                  </div>
-                  <Switch
+                </div>
+                <Switch
                     id="is-a-t-pose"
                     checked={isAtPose}
                     onCheckedChange={setIsAtPose}
-                    disabled={isLoading}
-                  />
-                </div>
+                  disabled={isLoading}
+                />
               </div>
             </div>
+          </div>
           )}
 
           {/* 提交按钮 */}

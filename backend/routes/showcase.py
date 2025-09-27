@@ -1,13 +1,20 @@
 from fastapi import APIRouter, Depends, HTTPException, Query
-from typing import Dict, Any, List, Optional
+from typing import Dict, Any, List, Optional, Union
 from services.db import Database
 from services.auth import get_current_user
 import logging
 from datetime import datetime
 import json
+from enum import Enum
 
 # 配置日志
 logger = logging.getLogger(__name__)
+
+# 定义排序选项枚举
+class SortBy(str, Enum):
+    latest = "latest"
+    popular = "popular"
+    likes = "likes"
 
 router = APIRouter()
 db = Database()
@@ -504,6 +511,31 @@ async def get_model_comments(
         logger.error("获取评论列表失败: %s", str(e))
         raise HTTPException(status_code=500, detail=str(e)) 
 
+@router.get("/tags/popular")
+async def get_popular_tags(current_user: dict = Depends(get_current_user)) -> Dict[str, Any]:
+    """获取热门标签"""
+    try:
+        # 从模型表中获取所有标签并统计数量
+        query = """
+            SELECT 
+                tag,
+                COUNT(*) as count
+            FROM model_showcase,
+                 JSON_TABLE(tags, '$[*]' COLUMNS (tag VARCHAR(50) PATH '$')) as t
+            GROUP BY tag
+            ORDER BY count DESC
+            LIMIT 10
+        """
+        tags = await db.fetch_all(query)
+        
+        return {
+            "tags": [{"tag": tag["tag"], "count": tag["count"]} for tag in tags]
+        }
+
+    except Exception as e:
+        logger.error("获取热门标签失败: %s", str(e))
+        raise HTTPException(status_code=500, detail=str(e)) 
+
 @router.get("/designers/leaderboard")
 async def get_designer_leaderboard(
     limit: int = Query(10, gt=0, le=50),
@@ -548,4 +580,174 @@ async def get_designer_leaderboard(
 
     except Exception as e:
         logger.error("获取设计师排行榜失败: %s", str(e))
+        raise HTTPException(status_code=500, detail=str(e)) 
+
+@router.get("/liked-models")  # Changed from "/models/liked" to "/liked-models"
+async def get_liked_models(
+    sort_by: SortBy = SortBy.latest,
+    page: Union[int, str] = Query(1),
+    page_size: Union[int, str] = Query(20),
+    current_user: dict = Depends(get_current_user)
+) -> Dict[str, Any]:
+    """获取用户收藏的模型列表"""
+    try:
+        logger.info(f"收到请求参数: sort_by={sort_by}, page={page}, page_size={page_size}, user={current_user}")
+
+        # 确保参数类型正确
+        try:
+            page = int(page)
+            page_size = int(page_size)
+        except (TypeError, ValueError):
+            raise HTTPException(status_code=400, detail="页码和每页数量必须是整数")
+
+        if page < 1:
+            raise HTTPException(status_code=400, detail="页码必须大于0")
+        if page_size < 1 or page_size > 100:
+            raise HTTPException(status_code=400, detail="每页数量必须在1到100之间")
+
+        # 构建基础查询
+        query = """
+            SELECT 
+                s.*,
+                u.username,
+                (SELECT COUNT(*) FROM model_comments WHERE model_id = s.id) as comment_count
+            FROM model_showcase s
+            LEFT JOIN users u ON s.user_id = u.id
+            INNER JOIN model_likes l ON s.id = l.model_id AND l.user_id = %s
+            WHERE s.status = 'public'
+        """
+        params = [current_user["user_id"]]
+
+        # 添加排序
+        if sort_by == "popular":
+            query += " ORDER BY s.views DESC"
+        elif sort_by == "likes":
+            query += " ORDER BY s.likes DESC"
+        else:  # latest
+            query += " ORDER BY s.created_at DESC"
+
+        # 添加分页
+        query += " LIMIT %s OFFSET %s"
+        params.extend([page_size, (page - 1) * page_size])
+
+        # 执行查询
+        models = await db.fetch_all(query, params)
+
+        # 获取总数
+        count_query = """
+            SELECT COUNT(*) as count
+            FROM model_showcase s
+            INNER JOIN model_likes l ON s.id = l.model_id AND l.user_id = %s
+            WHERE s.status = 'public'
+        """
+        total = await db.fetch_one(count_query, (current_user["user_id"],))
+        total_count = total["count"]
+
+        # 处理结果
+        result = []
+        for model in models:
+            model_dict = dict(model)
+            # 解析JSON字段
+            model_dict["tags"] = json.loads(model_dict["tags"]) if model_dict["tags"] else []
+            # 已点赞的模型
+            model_dict["is_liked"] = True
+            result.append(model_dict)
+
+        return {
+            "total": total_count,
+            "page": page,
+            "page_size": page_size,
+            "models": result
+        }
+
+    except Exception as e:
+        logger.error("获取收藏模型列表失败: %s", str(e))
+        raise HTTPException(status_code=500, detail=str(e))
+
+@router.get("/my-models")  # Changed from "/models/my" to "/my-models"
+async def get_my_models(
+    sort_by: SortBy = SortBy.latest,
+    page: Union[int, str] = Query(1),
+    page_size: Union[int, str] = Query(20),
+    current_user: dict = Depends(get_current_user)
+) -> Dict[str, Any]:
+    """获取用户自己的模型列表"""
+    try:
+        logger.info(f"收到请求参数: sort_by={sort_by}, page={page}, page_size={page_size}, user={current_user}")
+
+        # 确保参数类型正确
+        try:
+            page = int(page)
+            page_size = int(page_size)
+        except (TypeError, ValueError):
+            raise HTTPException(status_code=400, detail="页码和每页数量必须是整数")
+
+        if page < 1:
+            raise HTTPException(status_code=400, detail="页码必须大于0")
+        if page_size < 1 or page_size > 100:
+            raise HTTPException(status_code=400, detail="每页数量必须在1到100之间")
+
+        # 构建基础查询
+        query = """
+            SELECT 
+                s.*,
+                u.username,
+                (SELECT COUNT(*) FROM model_comments WHERE model_id = s.id) as comment_count
+            FROM model_showcase s
+            LEFT JOIN users u ON s.user_id = u.id
+            WHERE s.user_id = %s AND s.status = 'public'
+        """
+        params = [current_user["user_id"]]
+
+        # 添加排序
+        if sort_by == "popular":
+            query += " ORDER BY s.views DESC"
+        elif sort_by == "likes":
+            query += " ORDER BY s.likes DESC"
+        else:  # latest
+            query += " ORDER BY s.created_at DESC"
+
+        # 添加分页
+        query += " LIMIT %s OFFSET %s"
+        params.extend([page_size, (page - 1) * page_size])
+
+        # 执行查询
+        models = await db.fetch_all(query, params)
+
+        # 获取总数
+        count_query = """
+            SELECT COUNT(*) as count
+            FROM model_showcase s
+            WHERE s.user_id = %s AND s.status = 'public'
+        """
+        total = await db.fetch_one(count_query, (current_user["user_id"],))
+        total_count = total["count"]
+
+        # 处理结果
+        result = []
+        for model in models:
+            model_dict = dict(model)
+            # 解析JSON字段
+            model_dict["tags"] = json.loads(model_dict["tags"]) if model_dict["tags"] else []
+            
+            # 检查是否已点赞
+            like_query = """
+                SELECT COUNT(*) as liked
+                FROM model_likes
+                WHERE model_id = %s AND user_id = %s
+            """
+            like_status = await db.fetch_one(like_query, (model_dict["id"], current_user["user_id"]))
+            model_dict["is_liked"] = bool(like_status["liked"])
+            
+            result.append(model_dict)
+
+        return {
+            "total": total_count,
+            "page": page,
+            "page_size": page_size,
+            "models": result
+        }
+
+    except Exception as e:
+        logger.error("获取我的模型列表失败: %s", str(e))
         raise HTTPException(status_code=500, detail=str(e)) 

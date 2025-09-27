@@ -84,7 +84,7 @@ export function TextGenerator({ onTaskCreated, mode = "preview", previewTaskId }
         } : {
           // 精细化模式参数
           preview_task_id: previewTaskId,
-          enable_pbr: enablePbr,
+        enable_pbr: enablePbr,
           texture_prompt: texturePrompt || undefined,
         }),
       })
@@ -119,7 +119,7 @@ export function TextGenerator({ onTaskCreated, mode = "preview", previewTaskId }
       <CardHeader>
         <CardTitle className="flex items-center justify-between">
           <div className="flex items-center gap-2">
-            <Type className="h-5 w-5 text-primary" />
+          <Type className="h-5 w-5 text-primary" />
             {mode === "preview" ? "文本生成3D模型" : "精细化生成"}
           </div>
           {mode === "preview" && (
@@ -171,10 +171,10 @@ export function TextGenerator({ onTaskCreated, mode = "preview", previewTaskId }
           {mode === "preview" ? (
             <>
               {/* 预览模式选项 */}
-              <div className="space-y-4">
+          <div className="space-y-4">
                 <div className="grid grid-cols-2 gap-6">
-                  <div className="flex items-center justify-between">
-                    <div className="space-y-1">
+              <div className="flex items-center justify-between">
+                <div className="space-y-1">
                       <Label htmlFor="art-style">艺术风格</Label>
                       <p className="text-xs text-muted-foreground">
                         选择模型的整体风格
@@ -234,7 +234,7 @@ export function TextGenerator({ onTaskCreated, mode = "preview", previewTaskId }
                     </div>
 
                     <div className="space-y-2">
-                      <div className="flex items-center justify-between">
+              <div className="flex items-center justify-between">
                         <Label htmlFor="target-polycount">目标面数</Label>
                         <span className="text-sm text-muted-foreground">
                           {targetPolycount.toLocaleString()}
@@ -277,19 +277,19 @@ export function TextGenerator({ onTaskCreated, mode = "preview", previewTaskId }
                     </div>
 
                     <div className="col-span-2 flex items-center justify-between">
-                      <div className="space-y-1">
+                <div className="space-y-1">
                         <Label htmlFor="is-a-t-pose">A/T Pose</Label>
                         <p className="text-xs text-muted-foreground">
                           生成标准的A/T Pose姿态的模型
                         </p>
-                      </div>
-                      <Switch
+                </div>
+                <Switch
                         id="is-a-t-pose"
                         checked={isAtPose}
                         onCheckedChange={setIsAtPose}
-                        disabled={isLoading}
-                      />
-                    </div>
+                  disabled={isLoading}
+                />
+              </div>
                   </div>
                 </div>
               )}
@@ -299,20 +299,20 @@ export function TextGenerator({ onTaskCreated, mode = "preview", previewTaskId }
               {/* 精细化模式选项 */}
               <div className="space-y-4">
                 <div className="grid grid-cols-2 gap-6">
-                  <div className="flex items-center justify-between">
-                    <div className="space-y-1">
+              <div className="flex items-center justify-between">
+                <div className="space-y-1">
                       <Label htmlFor="enable-pbr">启用PBR材质</Label>
                       <p className="text-xs text-muted-foreground">
                         生成物理基础渲染材质，提供更真实的光照效果
                       </p>
-                    </div>
-                    <Switch
+                </div>
+                <Switch
                       id="enable-pbr"
                       checked={enablePbr}
                       onCheckedChange={setEnablePbr}
-                      disabled={isLoading}
-                    />
-                  </div>
+                  disabled={isLoading}
+                />
+              </div>
 
                   <div className="space-y-2">
                     <Label htmlFor="texture-prompt">贴图提示文本</Label>
@@ -328,8 +328,8 @@ export function TextGenerator({ onTaskCreated, mode = "preview", previewTaskId }
                       提供额外的文本提示以引导贴图生成过程（可选）
                     </p>
                   </div>
-                </div>
-              </div>
+            </div>
+          </div>
             </>
           )}
 

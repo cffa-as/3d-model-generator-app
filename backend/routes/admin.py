@@ -13,6 +13,7 @@ from datetime import datetime
 import io
 import csv
 import httpx
+import asyncio
 
 # 配置日志
 logger = logging.getLogger(__name__)
@@ -112,6 +113,26 @@ async def get_all_tasks(current_user: dict = Depends(get_admin_user)) -> List[Di
 @router.post("/tasks/{task_id}/evaluate")
 async def evaluate_task(task_id: str, current_user: dict = Depends(get_admin_user)) -> Dict[str, Any]:
     """评估指定任务的3D模型"""
+    max_retries = 3  # 最大重试次数
+    retry_delay = 1  # 重试间隔（秒）
+    
+    async def update_task_status_with_retry(task_id: str, status: str, retries: int = max_retries) -> None:
+        """带重试机制的任务状态更新"""
+        last_error = None
+        for attempt in range(retries):
+            try:
+                await db.execute(
+                    "UPDATE generation_tasks SET evaluation_status = %s WHERE task_id = %s",
+                    (status, task_id)
+                )
+                return
+            except Exception as e:
+                last_error = e
+                if attempt < retries - 1:  # 如果不是最后一次尝试
+                    await asyncio.sleep(retry_delay)  # 等待一段时间后重试
+                continue
+        raise last_error  # 如果所有重试都失败，抛出最后一个错误
+
     try:
         # 检查任务是否已经在评估中
         query = """
@@ -160,10 +181,7 @@ async def evaluate_task(task_id: str, current_user: dict = Depends(get_admin_use
                 raise HTTPException(status_code=500, detail=f"下载模型文件失败: {str(e)}")
             
         # 更新任务状态为评估中
-        await db.execute(
-            "UPDATE generation_tasks SET evaluation_status = 'evaluating' WHERE task_id = %s",
-            (task_id,)
-        )
+        await update_task_status_with_retry(task_id, "evaluating")
 
         # 创建日志捕获器
         log_capture = io.StringIO()
@@ -231,6 +249,7 @@ async def evaluate_task(task_id: str, current_user: dict = Depends(get_admin_use
             if mesh.is_watertight:
                 topology_score += 4
                 logger.info("- 完全流形网格 (+4分)")
+                boundary_ratio = 0.0  # 完全流形网格的边界边比例为0
             else:
                 # 检查边界边比例
                 edges_unique = mesh.edges_unique
@@ -488,20 +507,14 @@ async def evaluate_task(task_id: str, current_user: dict = Depends(get_admin_use
             log_capture.close()
             # 如果出错，确保状态被重置
             if 'topology_score' not in locals():
-                await db.execute(
-                    "UPDATE generation_tasks SET evaluation_status = 'pending' WHERE task_id = %s",
-                    (task_id,)
-                )
+                await update_task_status_with_retry(task_id, "pending")
 
     except Exception as e:
         error_msg = f"评估任务失败: {str(e)}"
         logger.exception(error_msg)  # 这会记录完整的堆栈跟踪
         # 确保状态被重置
         try:
-            await db.execute(
-                "UPDATE generation_tasks SET evaluation_status = 'pending' WHERE task_id = %s",
-                (task_id,)
-            )
+            await update_task_status_with_retry(task_id, "pending")
         except Exception as db_error:
             logger.error(f"重置任务状态失败: {str(db_error)}")
         raise HTTPException(status_code=500, detail=error_msg)

@@ -13,9 +13,12 @@ import { Badge } from "@/components/ui/badge"
 import { useToast } from "@/hooks/use-toast"
 import { ApiService, API_BASE_URL } from "@/lib/api"
 import { ThreeModelViewer } from "@/components/tasks/three-model-viewer"
-import { Heart, MessageCircle, Eye, Share2, Plus, Trophy } from "lucide-react"
+import { Heart, MessageCircle, Eye, Share2, Plus, Trophy, User } from "lucide-react"
 import { UploadModelDialog } from "@/components/showcase/upload-model-dialog"
 import { DesignerLeaderboard } from "@/components/showcase/designer-leaderboard";
+import { cn } from "@/lib/utils";
+
+type SortByType = "latest" | "popular" | "likes"
 
 interface ShowcaseModel {
   id: number
@@ -63,7 +66,9 @@ function ShowcasePageContent() {
   // 筛选状态
   const [searchTerm, setSearchTerm] = useState("")
   const [categoryFilter, setCategoryFilter] = useState("all")
-  const [sortBy, setSortBy] = useState("latest")
+  const [sortBy, setSortBy] = useState<SortByType>("latest")
+  const [selectedTag, setSelectedTag] = useState<string | null>(null)
+  const [popularTags, setPopularTags] = useState<Array<{tag: string, count: number}>>([])
 
   // 分页
   const [page, setPage] = useState(1)
@@ -78,23 +83,39 @@ function ShowcasePageContent() {
 
   useEffect(() => {
     if (user) {
+      setPage(1)  // 重置页码
+      setModels([])  // 清空现有数据
+      setFilteredModels([])  // 清空过滤数据
       loadModels()
+      loadPopularTags()
     }
-  }, [user, categoryFilter, sortBy, page])
+  }, [user, categoryFilter, sortBy])
 
-  // 搜索过滤效果
+  // 搜索和标签过滤效果
   useEffect(() => {
-    if (searchTerm.trim() === "") {
+    if (!models) return
+    
+    if (searchTerm.trim() === "" && !selectedTag) {
       setFilteredModels(models)
     } else {
       const searchLower = searchTerm.toLowerCase()
-      const filtered = models.filter(model => 
-        model.title.toLowerCase().includes(searchLower) ||
-        model.description.toLowerCase().includes(searchLower)
-      )
+      const filtered = models.filter(model => {
+        const matchesSearch = searchTerm.trim() === "" || 
+          model.title.toLowerCase().includes(searchLower) ||
+          model.description.toLowerCase().includes(searchLower)
+        const matchesTag = !selectedTag || model.tags.includes(selectedTag)
+        return matchesSearch && matchesTag
+      })
       setFilteredModels(filtered)
     }
-  }, [searchTerm, models])
+  }, [searchTerm, models, selectedTag])
+
+  // 加载更多时的效果
+  useEffect(() => {
+    if (page > 1) {
+      loadModels()
+    }
+  }, [page])
 
   const fetchLeaderboard = async () => {
     try {
@@ -126,6 +147,18 @@ function ShowcasePageContent() {
     }
   }, [isLeaderboardOpen]);
 
+  const loadPopularTags = async () => {
+    try {
+      const response = await fetch(`${API_BASE_URL}/showcase/tags/popular`, {
+        headers: ApiService.getAuthHeaders(),
+      })
+      const data = await response.json()
+      setPopularTags(data.tags || [])
+    } catch (error) {
+      console.error("加载热门标签失败:", error)
+    }
+  }
+
   if (isLoading) {
     return (
       <div className="min-h-screen flex items-center justify-center">
@@ -144,31 +177,66 @@ function ShowcasePageContent() {
   const loadModels = async () => {
     try {
       setLoading(true)
-      const params = new URLSearchParams({
-        page: page.toString(),
-        page_size: "20",
-        sort_by: sortBy,
-      })
-      if (categoryFilter !== "all") {
-        params.append("category", categoryFilter)
+
+      // 根据不同的筛选条件设置不同的API端点
+      let endpoint = `${API_BASE_URL}/showcase/models`
+      if (categoryFilter === "liked") {
+        endpoint = `${API_BASE_URL}/showcase/liked-models`  // Updated endpoint
+      } else if (categoryFilter === "my") {
+        endpoint = `${API_BASE_URL}/showcase/my-models`  // Updated endpoint
       }
 
-      const response = await fetch(`${API_BASE_URL}/showcase/models?${params}`, {
+      // 构建查询参数
+      const queryParams = `page=${parseInt(page.toString())}&page_size=${parseInt('20')}&sort_by=${sortBy}${categoryFilter !== "all" && categoryFilter !== "liked" && categoryFilter !== "my" ? `&category=${categoryFilter}` : ""}`
+      const fullUrl = `${endpoint}?${queryParams}`
+
+      console.log("发送请求:", {
+        url: fullUrl,
+        headers: ApiService.getAuthHeaders()
+      })
+
+      const response = await fetch(fullUrl, {
         headers: ApiService.getAuthHeaders(),
       })
+      
+      if (!response.ok) {
+        const errorData = await response.json().catch(() => null)
+        console.error("请求失败:", {
+          status: response.status,
+          statusText: response.statusText,
+          errorData: JSON.stringify(errorData, null, 2),
+        })
+        const errorMessage = errorData?.detail?.[0]?.msg || 
+                             errorData?.detail || 
+                             `HTTP error! status: ${response.status}`
+        throw new Error(errorMessage)
+      }
+      
       const data = await response.json()
-      const newModels = page === 1 ? data.models : [...models, ...data.models]
+      
+      // 根据页码决定是追加还是替换数据
+      const newModels = page === 1 ? data.models : [...(models || []), ...(data.models || [])]
       setModels(newModels)
-      setFilteredModels(newModels)  // 更新过滤后的模型列表
+      
+      // 如果没有搜索词和标签筛选，直接更新过滤后的数据
+      if (!searchTerm.trim() && !selectedTag) {
+        setFilteredModels(newModels)
+      }
+      
       setTotalPages(Math.ceil(data.total / 20))
       setHasMore(page < Math.ceil(data.total / 20))
     } catch (error) {
       console.error("加载模型失败:", error)
       toast({
         title: "加载失败",
-        description: "无法加载模型列表",
+        description: error instanceof Error ? error.message : "无法加载模型列表",
         variant: "destructive",
       })
+      // 发生错误时重置状态
+      if (page === 1) {
+        setModels([])
+        setFilteredModels([])
+      }
     } finally {
       setLoading(false)
     }
@@ -293,7 +361,7 @@ function ShowcasePageContent() {
         <div className="flex items-center justify-between mb-4">
           <div>
             <h1 className="text-3xl font-bold">模型广场</h1>
-            <p className="text-muted-foreground mt-1">发现和分享精彩的3D模型作品</p>
+            <p className="text-muted-foreground mt-1">分享和探索精美的虚拟手办和3D模型作品，让创意在这里绽放</p>
           </div>
           <div className="flex gap-2">
             {user && (
@@ -317,7 +385,7 @@ function ShowcasePageContent() {
 
         <div className="space-y-6">
           <Card className="glass">
-            <CardContent className="p-4">
+            <CardContent className="p-4 space-y-4">
               <div className="flex flex-col md:flex-row gap-4">
                 <Input
                   placeholder="搜索模型..."
@@ -325,6 +393,35 @@ function ShowcasePageContent() {
                   onChange={(e) => setSearchTerm(e.target.value)}
                   className="md:w-64"
                 />
+                <div className="flex gap-2">
+                  <Button
+                    variant={categoryFilter === "liked" ? "default" : "outline"}
+                    size="sm"
+                    className={cn(
+                      "h-10 px-4 gap-2 font-medium transition-all duration-200",
+                      categoryFilter === "liked" && "bg-primary text-primary-foreground hover:bg-primary/90"
+                    )}
+                    onClick={() => setCategoryFilter(categoryFilter === "liked" ? "all" : "liked")}
+                  >
+                    <Heart className={cn(
+                      "h-4 w-4",
+                      categoryFilter === "liked" && "fill-current"
+                    )} />
+                    我的收藏
+                  </Button>
+                  <Button
+                    variant={categoryFilter === "my" ? "default" : "outline"}
+                    size="sm"
+                    className={cn(
+                      "h-10 px-4 gap-2 font-medium transition-all duration-200",
+                      categoryFilter === "my" && "bg-primary text-primary-foreground hover:bg-primary/90"
+                    )}
+                    onClick={() => setCategoryFilter(categoryFilter === "my" ? "all" : "my")}
+                  >
+                    <User className="h-4 w-4" />
+                    我的作品
+                  </Button>
+                </div>
                 <Select value={categoryFilter} onValueChange={setCategoryFilter}>
                   <SelectTrigger className="w-full md:w-40">
                     <SelectValue placeholder="选择分类" />
@@ -337,7 +434,7 @@ function ShowcasePageContent() {
                     <SelectItem value="other">其他</SelectItem>
                   </SelectContent>
                 </Select>
-                <Select value={sortBy} onValueChange={setSortBy}>
+                <Select value={sortBy} onValueChange={(value: SortByType) => setSortBy(value)}>
                   <SelectTrigger className="w-full md:w-40">
                     <SelectValue placeholder="排序方式" />
                   </SelectTrigger>
@@ -348,65 +445,105 @@ function ShowcasePageContent() {
                   </SelectContent>
                 </Select>
               </div>
+
+              {/* 热门标签 */}
+              {popularTags.length > 0 && (
+                <div className="flex flex-wrap gap-2 items-center">
+                  <span className="text-sm text-muted-foreground">热门标签：</span>
+                  {popularTags.map(({ tag, count }) => (
+                    <Badge
+                      key={tag}
+                      variant={selectedTag === tag ? "default" : "secondary"}
+                      className={cn(
+                        "cursor-pointer hover:bg-primary/20 transition-colors",
+                        selectedTag === tag && "bg-primary text-primary-foreground hover:bg-primary/90"
+                      )}
+                      onClick={() => setSelectedTag(selectedTag === tag ? null : tag)}
+                    >
+                      {tag}
+                      <span className="ml-1 text-xs opacity-60">({count})</span>
+                    </Badge>
+                  ))}
+                </div>
+              )}
             </CardContent>
           </Card>
 
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
-            {filteredModels.map((model) => (
-              <Card key={model.id} className="overflow-hidden hover:shadow-lg transition-shadow">
-                <div className="aspect-square relative overflow-hidden bg-muted">
-                  {model.preview_url ? (
-                    <img
-                      src={model.preview_url || "/placeholder.svg"}
-                      alt={model.title}
-                      className="object-cover w-full h-full"
-                    />
-                  ) : (
-                    <div className="w-full h-full flex items-center justify-center text-muted-foreground">无预览图</div>
-                  )}
-                  <Button
-                    variant="ghost"
-                    size="icon"
-                    className="absolute top-2 right-2 bg-background/50 hover:bg-background/80"
-                    onClick={(e) => {
-                      e.stopPropagation()
-                      handleLike(model)
-                    }}
-                  >
-                    <Heart className={`h-5 w-5 ${model.is_liked ? "fill-red-500 text-red-500" : ""}`} />
-                  </Button>
-                </div>
-                <CardContent className="p-4">
-                  <div className="space-y-2">
-                    <div className="flex items-start justify-between">
-                      <h3 className="font-semibold truncate">{model.title}</h3>
-                      <Button variant="ghost" size="sm" onClick={() => router.push(`/showcase/${model.id}`)}>
-                        查看
-                      </Button>
+            {loading ? (
+              // 加载状态显示骨架屏
+              Array.from({ length: 8 }).map((_, index) => (
+                <Card key={index} className="overflow-hidden">
+                  <div className="aspect-square bg-muted animate-pulse" />
+                  <CardContent className="p-4">
+                    <div className="space-y-3">
+                      <div className="h-4 bg-muted-foreground/20 rounded animate-pulse" />
+                      <div className="h-4 bg-muted-foreground/20 rounded w-2/3 animate-pulse" />
                     </div>
-                    <p className="text-sm text-muted-foreground line-clamp-2">{model.description}</p>
-                    <div className="flex items-center gap-2 text-sm text-muted-foreground">
-                      <span className="flex items-center gap-1">
-                        <Heart className="h-4 w-4" /> {model.likes}
-                      </span>
-                      <span className="flex items-center gap-1">
-                        <MessageCircle className="h-4 w-4" /> {model.comment_count}
-                      </span>
-                      <span className="flex items-center gap-1">
-                        <Eye className="h-4 w-4" /> {model.views}
-                      </span>
-                    </div>
-                    <div className="flex items-center gap-2">
-                      {model.tags.map((tag) => (
-                        <Badge key={tag} variant="secondary" className="text-xs">
-                          {tag}
-                        </Badge>
-                      ))}
-                    </div>
+                  </CardContent>
+                </Card>
+              ))
+            ) : filteredModels.length > 0 ? (
+              filteredModels.map((model) => (
+                <Card key={model.id} className="overflow-hidden hover:shadow-lg transition-shadow">
+                  <div className="aspect-square relative overflow-hidden bg-muted">
+                    {model.preview_url ? (
+                      <img
+                        src={model.preview_url || "/placeholder.svg"}
+                        alt={model.title}
+                        className="object-cover w-full h-full"
+                      />
+                    ) : (
+                      <div className="w-full h-full flex items-center justify-center text-muted-foreground">无预览图</div>
+                    )}
+                    <Button
+                      variant="ghost"
+                      size="icon"
+                      className="absolute top-2 right-2 bg-background/50 hover:bg-background/80"
+                      onClick={(e) => {
+                        e.stopPropagation()
+                        handleLike(model)
+                      }}
+                    >
+                      <Heart className={`h-5 w-5 ${model.is_liked ? "fill-red-500 text-red-500" : ""}`} />
+                    </Button>
                   </div>
-                </CardContent>
-              </Card>
-            ))}
+                  <CardContent className="p-4">
+                    <div className="space-y-2">
+                      <div className="flex items-start justify-between">
+                        <h3 className="font-semibold truncate">{model.title}</h3>
+                        <Button variant="ghost" size="sm" onClick={() => router.push(`/showcase/${model.id}`)}>
+                          查看
+                        </Button>
+                      </div>
+                      <p className="text-sm text-muted-foreground line-clamp-2">{model.description}</p>
+                      <div className="flex items-center gap-2 text-sm text-muted-foreground">
+                        <span className="flex items-center gap-1">
+                          <Heart className="h-4 w-4" /> {model.likes}
+                        </span>
+                        <span className="flex items-center gap-1">
+                          <MessageCircle className="h-4 w-4" /> {model.comment_count}
+                        </span>
+                        <span className="flex items-center gap-1">
+                          <Eye className="h-4 w-4" /> {model.views}
+                        </span>
+                      </div>
+                      <div className="flex items-center gap-2">
+                        {model.tags.map((tag) => (
+                          <Badge key={tag} variant="secondary" className="text-xs">
+                            {tag}
+                          </Badge>
+                        ))}
+                      </div>
+                    </div>
+                  </CardContent>
+                </Card>
+              ))
+            ) : (
+              <div className="col-span-full text-center py-8">
+                <p className="text-muted-foreground">暂无模型</p>
+              </div>
+            )}
           </div>
 
           {hasMore && searchTerm.trim() === "" && (
