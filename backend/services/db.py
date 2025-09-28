@@ -122,6 +122,79 @@ class Database:
             raise
 
     @classmethod
+    async def create_model_with_immediate_fetch(cls, insert_query: str, insert_args: tuple, fetch_query: str) -> tuple:
+        """创建模型并立即获取，确保在同一个连接中完成"""
+        try:
+            pool = await cls.get_pool()
+            async with pool.acquire() as conn:
+                # 执行插入
+                async with conn.cursor() as cur:
+                    await cur.execute(insert_query, insert_args)
+                    model_id = cur.lastrowid
+                
+                # 在同一个连接中立即查询
+                async with conn.cursor(aiomysql.DictCursor) as dict_cur:
+                    await dict_cur.execute(fetch_query, (model_id,))
+                    created_model = await dict_cur.fetchone()
+                
+                # 提交事务
+                await conn.commit()
+                
+                return model_id, created_model
+        except Exception as e:
+            logger.error("Failed to create model with fetch: %s", str(e))
+            raise
+
+    @classmethod
+    async def execute_in_transaction(cls, operations: list) -> list:
+        """在同一个事务中执行多个操作
+        
+        Args:
+            operations: 操作列表，每个操作是一个字典：
+                {
+                    'type': 'execute' | 'fetch_one' | 'fetch_all',
+                    'query': 'SQL语句',
+                    'args': (参数元组,)
+                }
+        
+        Returns:
+            list: 每个操作的结果列表
+        """
+        try:
+            pool = await cls.get_pool()
+            results = []
+            
+            async with pool.acquire() as conn:
+                for op in operations:
+                    if op['type'] == 'execute':
+                        async with conn.cursor() as cur:
+                            await cur.execute(op['query'], op.get('args', ()))
+                            if op['query'].strip().upper().startswith('INSERT'):
+                                results.append(cur.lastrowid)
+                            else:
+                                results.append(cur.rowcount)
+                    
+                    elif op['type'] == 'fetch_one':
+                        async with conn.cursor(aiomysql.DictCursor) as cur:
+                            await cur.execute(op['query'], op.get('args', ()))
+                            result = await cur.fetchone()
+                            results.append(result)
+                    
+                    elif op['type'] == 'fetch_all':
+                        async with conn.cursor(aiomysql.DictCursor) as cur:
+                            await cur.execute(op['query'], op.get('args', ()))
+                            result = await cur.fetchall()
+                            results.append(list(result))
+                
+                # 提交事务
+                await conn.commit()
+                
+            return results
+        except Exception as e:
+            logger.error("Failed to execute transaction: %s", str(e))
+            raise
+
+    @classmethod
     async def close(cls):
         """关闭数据库连接池"""
         if cls._pool is not None:

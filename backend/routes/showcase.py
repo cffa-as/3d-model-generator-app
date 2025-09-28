@@ -30,6 +30,7 @@ async def get_showcase_models(
 ) -> Dict[str, Any]:
     """获取模型展示列表"""
     try:
+
         # 构建基础查询
         query = """
             SELECT 
@@ -213,7 +214,7 @@ async def create_showcase_model(
             model["model_url"],  # 用户直接提供模型URL
             model.get("status", "public")
         )
-        logger.info("准备插入的数据: %s", values)
+
 
         # 使用事务方法确保插入和查询的数据一致性
         fetch_query = """
@@ -227,17 +228,12 @@ async def create_showcase_model(
         """
         
         try:
-            model_id, created_model = await db.execute_and_fetch_one(
-                insert_query, values, 
-                fetch_query, True  # use_insert_id=True
+            # 使用同一个连接创建并获取模型
+            model_id, created_model = await db.create_model_with_immediate_fetch(
+                insert_query, values, fetch_query
             )
             
-            # 如果第一次查询失败，重新查询
-            if not created_model:
-                logger.warning("首次查询失败，重新查询模型详情")
-                created_model = await db.fetch_one(fetch_query, (model_id,))
-            
-            logger.info("模型展示记录插入成功，ID: %s, 详情: %s", model_id, created_model)
+
             
             if not model_id:
                 raise HTTPException(status_code=500, detail="插入记录失败，未获取到ID")

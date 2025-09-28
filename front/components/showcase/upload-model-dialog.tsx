@@ -7,7 +7,7 @@ import { Input } from "@/components/ui/input"
 import { Textarea } from "@/components/ui/textarea"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Badge } from "@/components/ui/badge"
-import { useToast } from "@/components/ui/use-toast"
+import { useToast } from "@/hooks/use-toast"
 import { ApiService, API_BASE_URL } from "@/lib/api"
 import { X, Plus, Upload, History } from "lucide-react"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
@@ -44,6 +44,7 @@ export function UploadModelDialog({
     preview_url: ""
   })
   const [newTag, setNewTag] = useState("")
+  const [validationError, setValidationError] = useState("")
 
   // 加载已完成的任务
   useEffect(() => {
@@ -83,14 +84,25 @@ export function UploadModelDialog({
   }
 
   const handleSubmit = async () => {
-    if (!formData.title || !formData.category || !formData.model_url) {
+    // 详细的表单验证
+    const errors = []
+    if (!formData.title?.trim()) errors.push("标题")
+    if (!formData.category) errors.push("分类")
+    if (!formData.model_url?.trim()) errors.push("模型URL")
+    
+    if (errors.length > 0) {
+      const errorMessage = `请填写必填项：${errors.join("、")}`
+      setValidationError(errorMessage)
       toast({
         title: "请完善信息",
-        description: "标题、分类和模型URL为必填项",
+        description: errorMessage,
         variant: "destructive",
       })
       return
     }
+    
+    // 清除验证错误
+    setValidationError("")
 
     try {
       setLoading(true)
@@ -174,6 +186,13 @@ export function UploadModelDialog({
           <DialogTitle>分享模型</DialogTitle>
         </DialogHeader>
         <div className="space-y-4">
+          {/* 验证错误提示 */}
+          {validationError && (
+            <div className="bg-destructive/10 border border-destructive/20 rounded-md p-3">
+              <p className="text-sm text-destructive font-medium">{validationError}</p>
+            </div>
+          )}
+          
           <Tabs value={uploadMethod} onValueChange={(v) => setUploadMethod(v as "task" | "url")}>
             <TabsList className="grid w-full grid-cols-2">
               <TabsTrigger value="task">从任务历史选择</TabsTrigger>
@@ -259,11 +278,17 @@ export function UploadModelDialog({
           </Tabs>
 
           <div className="space-y-2">
-            <label className="text-sm font-medium">标题</label>
+            <label className="text-sm font-medium">
+              标题 <span className="text-destructive">*</span>
+            </label>
             <Input
               placeholder="输入模型标题"
               value={formData.title}
-              onChange={(e) => setFormData(prev => ({ ...prev, title: e.target.value }))}
+              onChange={(e) => {
+                setFormData(prev => ({ ...prev, title: e.target.value }))
+                setValidationError("")  // 清除验证错误
+              }}
+              className={validationError.includes("标题") ? "border-destructive" : ""}
             />
           </div>
 
@@ -277,12 +302,17 @@ export function UploadModelDialog({
           </div>
 
           <div className="space-y-2">
-            <label className="text-sm font-medium">分类</label>
+            <label className="text-sm font-medium">
+              分类 <span className="text-destructive">*</span>
+            </label>
             <Select
               value={formData.category}
-              onValueChange={(value) => setFormData(prev => ({ ...prev, category: value }))}
+              onValueChange={(value) => {
+                setFormData(prev => ({ ...prev, category: value }))
+                setValidationError("")  // 清除验证错误
+              }}
             >
-              <SelectTrigger>
+              <SelectTrigger className={validationError.includes("分类") ? "border-destructive" : ""}>
                 <SelectValue placeholder="选择分类" />
               </SelectTrigger>
               <SelectContent>

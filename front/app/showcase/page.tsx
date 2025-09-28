@@ -1,6 +1,6 @@
 "use client"
 
-import { useState, useEffect } from "react"
+import { useState, useEffect, useCallback } from "react"
 import { useRouter } from "next/navigation"
 import { Navbar } from "@/components/layout/navbar"
 import { useAuth, AuthProvider } from "@/hooks/use-auth"
@@ -257,30 +257,14 @@ function ShowcasePageContent() {
       }
       
       const data = await response.json()
-      console.log("API返回数据:", { total: data.total, models: data.models?.length, page })
-      
       // 根据页码决定是追加还是替换数据
-      const newModels = page === 1 ? data.models : [...(models || []), ...(data.models || [])]
-      console.log("处理后的模型数据:", { count: newModels?.length, page })
+      const newModels = page === 1 ? data.models : data.models
       
-      // 更新模型状态
-      setModels(newModels)
-      
-      // 立即更新过滤后的数据，确保显示一致性
-      if (!searchTerm.trim() && !selectedTag) {
-        setFilteredModels(newModels)
-      } else {
-        // 如果有搜索条件，立即执行过滤
-        const searchLower = searchTerm.toLowerCase()
-        const filtered = newModels.filter((model: ShowcaseModel) => {
-          const matchesSearch = searchTerm.trim() === "" || 
-            model.title.toLowerCase().includes(searchLower) ||
-            model.description.toLowerCase().includes(searchLower)
-          const matchesTag = !selectedTag || model.tags.includes(selectedTag)
-          return matchesSearch && matchesTag
-        })
-        setFilteredModels(filtered)
-      }
+              // 简化数据更新逻辑
+        const finalModels = page === 1 ? newModels : [...(models || []), ...(newModels || [])]
+        setModels(finalModels)
+        
+        // 不在这里设置filteredModels，让useEffect处理
       
       setTotalPages(Math.ceil(data.total / 20))
       setHasMore(page < Math.ceil(data.total / 20))
@@ -703,14 +687,10 @@ function ShowcasePageContent() {
           open={uploadDialog}
           onOpenChange={setUploadDialog}
           onSuccess={() => {
-            console.log("分享成功，开始刷新数据...")
             setPage(1)
             setModels([])  // 清空现有模型列表
             setFilteredModels([])  // 清空过滤结果
-            setRefreshKey(prev => {
-              console.log("触发强制刷新，refreshKey:", prev + 1)
-              return prev + 1
-            })  // 触发强制刷新
+            setRefreshKey(prev => prev + 1)  // 触发强制刷新
           }}
         />
 
