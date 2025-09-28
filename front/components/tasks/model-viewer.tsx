@@ -128,7 +128,7 @@ export function ModelViewer({
                 size="lg"
               >
                 <Eye className="h-5 w-5 mr-2" />
-                🎮 查看3D模型
+                查看3D模型
               </Button>
               <p className="text-xs text-muted-foreground text-center mt-2">
                 支持全方位旋转、缩放和平移操作
