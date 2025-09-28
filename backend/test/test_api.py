@@ -100,7 +100,7 @@ class TestClient:
             print("\n2. 等待预览任务完成...")
             while True:
                 response = await self.client.get(
-                    f"{self.base_url}/tasks/tasks/{preview_task_id}",
+                    f"{self.base_url}/tasks/{preview_task_id}",
                     headers=headers
                 )
                 response.raise_for_status()
@@ -146,7 +146,7 @@ class TestClient:
             print("\n4. 等待精细化任务完成...")
             while True:
                 response = await self.client.get(
-                    f"{self.base_url}/tasks/tasks/{refine_task_id}",
+                    f"{self.base_url}/tasks/{refine_task_id}",
                     headers=headers
                 )
                 response.raise_for_status()
@@ -216,7 +216,7 @@ class TestClient:
                 print("\n等待任务完成...")
                 while True:
                     response = await self.client.get(
-                        f"{self.base_url}/tasks/tasks/{task_id}",
+                        f"{self.base_url}/tasks/{task_id}",
                         headers=headers
                     )
                     response.raise_for_status()
@@ -286,7 +286,7 @@ class TestClient:
                 print("\n等待任务完成...")
                 while True:
                     response = await self.client.get(
-                        f"{self.base_url}/tasks/tasks/{task_id}",
+                        f"{self.base_url}/tasks/{task_id}",
                         headers=headers
                     )
                     response.raise_for_status()
@@ -329,7 +329,7 @@ class TestClient:
             
             headers = {"Authorization": f"Bearer {self.token}"}
             response = await self.client.get(
-                f"{self.base_url}/tasks/tasks",
+                f"{self.base_url}/tasks",
                 headers=headers,
                 params={
                     "sync_status": sync_status,

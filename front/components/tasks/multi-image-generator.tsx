@@ -12,6 +12,7 @@ import { Slider } from "@/components/ui/slider"
 import { Textarea } from "@/components/ui/textarea"
 import { ImageUpload } from "./image-upload"
 import { TaskService } from "@/lib/tasks"
+import { ApiService } from "@/lib/api"
 import { Loader2, Sparkles, Images, Settings2 } from "lucide-react"
 import { useToast } from "@/hooks/use-toast"
 import { cn } from "@/lib/utils"
@@ -37,6 +38,7 @@ export function MultiImageGenerator({ onTaskCreated }: MultiImageGeneratorProps)
   const [isAtPose, setIsAtPose] = useState(false)
   
   const [isLoading, setIsLoading] = useState(false)
+  const [imageBase64Urls, setImageBase64Urls] = useState<string[]>([])
   const { toast } = useToast()
 
   const handleImageUpload = (files: File[]) => {
@@ -45,6 +47,7 @@ export function MultiImageGenerator({ onTaskCreated }: MultiImageGeneratorProps)
 
   const handleImageRemove = () => {
     setUploadedFiles([])
+    setImageBase64Urls([])
   }
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -61,10 +64,36 @@ export function MultiImageGenerator({ onTaskCreated }: MultiImageGeneratorProps)
 
     setIsLoading(true)
     try {
+      // 如果没有图片数据，先处理图片上传
+      let imageUrls = imageBase64Urls
+      if (!imageUrls || imageUrls.length === 0) {
+        // 先上传图片获取base64数据
+        const formData = new FormData()
+        uploadedFiles.forEach(file => {
+          formData.append('files', file)
+        })
+
+        const uploadResponse = await fetch(`${ApiService.getApiBaseUrl()}/tasks/upload`, {
+          method: 'POST',
+          headers: {
+            ...ApiService.getAuthHeaders(),
+          },
+          body: formData
+        })
+
+        if (!uploadResponse.ok) {
+          throw new Error('上传图片失败')
+        }
+
+        const uploadResult = await uploadResponse.json()
+        imageUrls = uploadResult.results.map((r: any) => r.base64_image)
+        setImageBase64Urls(imageUrls)
+      }
+
       const result = await TaskService.createTask({
         task_type: "multi_image",
         prompt: "从多张图片生成3D模型",
-        images: uploadedFiles,
+        image_urls: imageUrls, // 使用image_urls而不是images
         // 基础参数
         should_texture: shouldTexture,
         enable_pbr: shouldTexture && enablePbr,
@@ -90,6 +119,7 @@ export function MultiImageGenerator({ onTaskCreated }: MultiImageGeneratorProps)
 
       // 重置表单
       setUploadedFiles([])
+      setImageBase64Urls([])
     } catch (error) {
       toast({
         title: "创建失败",

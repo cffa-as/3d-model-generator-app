@@ -52,7 +52,6 @@ export default function EvaluationPage() {
     try {
       setLoading(true)
       const data = await ApiService.getAdminTasks()
-      
       setTasks(data)
     } catch (error) {
       console.error("加载任务失败:", error)
@@ -136,36 +135,42 @@ export default function EvaluationPage() {
             </CardHeader>
             <CardContent>
               <div className="space-y-4">
-                {ratedTasks.slice(0, 5).map((task) => (
-                  <div key={task.id} className="flex items-center justify-between p-4 rounded-lg border">
-                    <div>
-                      <div className="font-medium">{task.username}</div>
-                      <div className="text-sm text-muted-foreground">
-                        评分时间：{new Date(task.rated_at!).toLocaleString("zh-CN")}
-                      </div>
-                      {task.rating_comment && (
-                        <div className="mt-1 text-sm">{task.rating_comment}</div>
-                      )}
-                    </div>
-                    <div className="flex items-center gap-1">
-                      {[...Array(10)].map((_, i) => (
-                        <Star
-                          key={i}
-                          className={cn(
-                            "h-4 w-4",
-                            i < (task.user_rating || 0)
-                              ? "fill-yellow-400 text-yellow-400"
-                              : "text-muted-foreground"
-                          )}
-                        />
-                      ))}
-                      <span className="ml-2 font-medium">
-                        {task.user_rating?.toFixed(1)}
-                      </span>
-                    </div>
+                {loading ? (
+                  <div className="text-center py-8">
+                    <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary mx-auto mb-4"></div>
+                    <p className="text-muted-foreground">加载任务数据...</p>
                   </div>
-                ))}
-                {ratedTasks.length === 0 && (
+                ) : ratedTasks.length > 0 ? (
+                  ratedTasks.slice(0, 5).map((task) => (
+                    <div key={task.id} className="flex items-center justify-between p-4 rounded-lg border">
+                      <div>
+                        <div className="font-medium">{task.username}</div>
+                        <div className="text-sm text-muted-foreground">
+                          评分时间：{new Date(task.rated_at!).toLocaleString("zh-CN")}
+                        </div>
+                        {task.rating_comment && (
+                          <div className="mt-1 text-sm">{task.rating_comment}</div>
+                        )}
+                      </div>
+                      <div className="flex items-center gap-1">
+                        {[...Array(10)].map((_, i) => (
+                          <Star
+                            key={i}
+                            className={cn(
+                              "h-4 w-4",
+                              i < (task.user_rating || 0)
+                                ? "fill-yellow-400 text-yellow-400"
+                                : "text-muted-foreground"
+                            )}
+                          />
+                        ))}
+                        <span className="ml-2 font-medium">
+                          {task.user_rating?.toFixed(1)}
+                        </span>
+                      </div>
+                    </div>
+                  ))
+                ) : (
                   <div className="text-center py-8 text-muted-foreground">
                     暂无用户评分
                   </div>

@@ -98,9 +98,13 @@ export function UploadModelDialog({
         method: "POST",
         headers: {
           ...ApiService.getAuthHeaders(),
-          "Content-Type": "application/json"
+          "Content-Type": "application/json",
+          'Cache-Control': 'no-cache, no-store, must-revalidate',
+          'Pragma': 'no-cache',
+          'Expires': '0'
         },
-        body: JSON.stringify(formData)
+        body: JSON.stringify(formData),
+        cache: 'no-store'
       })
 
       if (response.ok) {

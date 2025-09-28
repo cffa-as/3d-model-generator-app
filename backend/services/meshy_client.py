@@ -129,7 +129,16 @@ class MeshyClient:
         try:
             # 转换为base64
             base64_image = base64.b64encode(image_data).decode()
-            image_url = f"data:image/jpeg;base64,{base64_image}"
+            # 检测图片格式，默认使用jpeg
+            if image_data.startswith(b'\x89PNG'):
+                mime_type = "image/png"
+            elif image_data.startswith(b'\xFF\xD8\xFF'):
+                mime_type = "image/jpeg"
+            elif image_data.startswith(b'GIF'):
+                mime_type = "image/gif"
+            else:
+                mime_type = "image/jpeg"  # 默认
+            image_url = f"data:{mime_type};base64,{base64_image}"
 
             async with httpx.AsyncClient(timeout=self.timeout) as client:
                 payload = {
@@ -178,7 +187,16 @@ class MeshyClient:
             image_urls = []
             for image_data in image_data_list:
                 base64_image = base64.b64encode(image_data).decode()
-                image_urls.append(f"data:image/jpeg;base64,{base64_image}")
+                # 检测图片格式，默认使用jpeg
+                if image_data.startswith(b'\x89PNG'):
+                    mime_type = "image/png"
+                elif image_data.startswith(b'\xFF\xD8\xFF'):
+                    mime_type = "image/jpeg"
+                elif image_data.startswith(b'GIF'):
+                    mime_type = "image/gif"
+                else:
+                    mime_type = "image/jpeg"  # 默认
+                image_urls.append(f"data:{mime_type};base64,{base64_image}")
 
             async with httpx.AsyncClient(timeout=self.timeout) as client:
                 payload = {

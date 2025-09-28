@@ -316,7 +316,7 @@ async def create_task(
         logger.error("创建任务失败:", exc_info=True)
         raise HTTPException(status_code=500, detail=str(e))
 
-@router.get("/tasks")
+@router.get("/")
 async def get_user_tasks(
     current_user: dict = Depends(get_current_user), 
     sync_status: bool = False,
@@ -414,7 +414,7 @@ async def get_user_tasks(
         logger.error("获取任务列表失败: %s", str(e))
         raise HTTPException(status_code=500, detail=str(e))
 
-@router.get("/tasks/{task_id}")
+@router.get("/{task_id}")
 async def get_task_status(
     task_id: str, 
     current_user: dict = Depends(get_current_user),
@@ -554,7 +554,7 @@ async def get_task_status(
         logger.error(f"获取任务状态失败: {e}")
         raise HTTPException(status_code=500, detail=str(e))
 
-@router.delete("/tasks/{task_id}")
+@router.delete("/{task_id}")
 async def delete_task(task_id: str, current_user: dict = Depends(get_current_user)):
     """删除任务及其相关数据"""
     try:
@@ -739,7 +739,7 @@ async def proxy_model_file(task_id: str, current_user: dict = Depends(get_curren
         logger.error(f"代理模型文件失败: {str(e)}")
         raise HTTPException(status_code=500, detail=str(e))
 
-@router.post("/{task_id}/rate", tags=["tasks"])
+@router.post("/{task_id}/rate")
 async def rate_task(
     task_id: str,
     rating: Dict[str, Any],
@@ -783,7 +783,7 @@ async def rate_task(
         logger.error("评分失败: %s", str(e))
         raise HTTPException(status_code=500, detail=str(e))
 
-@router.get("/{task_id}/rating", tags=["tasks"])
+@router.get("/{task_id}/rating")
 async def get_task_rating(
     task_id: str,
     current_user: dict = Depends(get_current_user)

@@ -82,6 +82,7 @@ function ShowcasePageContent() {
   const [page, setPage] = useState(1)
   const [totalPages, setTotalPages] = useState(1)
   const [hasMore, setHasMore] = useState(true)
+  const [refreshKey, setRefreshKey] = useState(0)  // 用于强制刷新
 
   useEffect(() => {
     if (!isLoading && !user) {
@@ -97,7 +98,7 @@ function ShowcasePageContent() {
       loadModels()
       loadPopularTags()
     }
-  }, [user, categoryFilter, sortBy])
+  }, [user, categoryFilter, sortBy, refreshKey])
 
   // 处理分类切换
   const handleCategoryChange = (newCategory: string) => {
@@ -145,7 +146,13 @@ function ShowcasePageContent() {
     try {
       setIsLeaderboardLoading(true);
       const response = await fetch(`${API_BASE_URL}/showcase/designers/leaderboard`, {
-        headers: ApiService.getAuthHeaders(),
+        headers: {
+          ...ApiService.getAuthHeaders(),
+          'Cache-Control': 'no-cache, no-store, must-revalidate',
+          'Pragma': 'no-cache',
+          'Expires': '0'
+        },
+        cache: 'no-store'
       });
       if (!response.ok) {
         console.error("Leaderboard API error:", await response.text());
@@ -174,7 +181,13 @@ function ShowcasePageContent() {
   const loadPopularTags = async () => {
     try {
       const response = await fetch(`${API_BASE_URL}/showcase/tags/popular`, {
-        headers: ApiService.getAuthHeaders(),
+        headers: {
+          ...ApiService.getAuthHeaders(),
+          'Cache-Control': 'no-cache, no-store, must-revalidate',
+          'Pragma': 'no-cache',
+          'Expires': '0'
+        },
+        cache: 'no-store'
       })
       const data = await response.json()
       setPopularTags(data.tags || [])
@@ -221,7 +234,13 @@ function ShowcasePageContent() {
 
 
       const response = await fetch(fullUrl, {
-        headers: ApiService.getAuthHeaders(),
+        headers: {
+          ...ApiService.getAuthHeaders(),
+          'Cache-Control': 'no-cache, no-store, must-revalidate',
+          'Pragma': 'no-cache',
+          'Expires': '0'
+        },
+        cache: 'no-store'
       })
       
       if (!response.ok) {
@@ -238,14 +257,29 @@ function ShowcasePageContent() {
       }
       
       const data = await response.json()
+      console.log("API返回数据:", { total: data.total, models: data.models?.length, page })
       
       // 根据页码决定是追加还是替换数据
       const newModels = page === 1 ? data.models : [...(models || []), ...(data.models || [])]
+      console.log("处理后的模型数据:", { count: newModels?.length, page })
+      
+      // 更新模型状态
       setModels(newModels)
       
-      // 如果没有搜索词和标签筛选，直接更新过滤后的数据
+      // 立即更新过滤后的数据，确保显示一致性
       if (!searchTerm.trim() && !selectedTag) {
         setFilteredModels(newModels)
+      } else {
+        // 如果有搜索条件，立即执行过滤
+        const searchLower = searchTerm.toLowerCase()
+        const filtered = newModels.filter((model: ShowcaseModel) => {
+          const matchesSearch = searchTerm.trim() === "" || 
+            model.title.toLowerCase().includes(searchLower) ||
+            model.description.toLowerCase().includes(searchLower)
+          const matchesTag = !selectedTag || model.tags.includes(selectedTag)
+          return matchesSearch && matchesTag
+        })
+        setFilteredModels(filtered)
       }
       
       setTotalPages(Math.ceil(data.total / 20))
@@ -279,36 +313,18 @@ function ShowcasePageContent() {
     try {
       const response = await fetch(`${API_BASE_URL}/showcase/models/${model.id}/like`, {
         method: "POST",
-        headers: ApiService.getAuthHeaders(),
+        headers: {
+          ...ApiService.getAuthHeaders(),
+          'Cache-Control': 'no-cache, no-store, must-revalidate',
+          'Pragma': 'no-cache',
+          'Expires': '0'
+        },
+        cache: 'no-store'
       })
 
       if (response.ok) {
-        // 更新模型列表中的点赞状态
-        setModels((prev) =>
-          prev.map((m) => {
-            if (m.id === model.id) {
-              return {
-                ...m,
-                likes: m.is_liked ? m.likes - 1 : m.likes + 1,
-                is_liked: !m.is_liked,
-              }
-            }
-            return m
-          }),
-        )
-
-        // 如果当前模型正在预览，也更新它的状态
-        if (selectedModel?.id === model.id) {
-          setSelectedModel((prev) =>
-            prev
-              ? {
-                  ...prev,
-                  likes: prev.is_liked ? prev.likes - 1 : prev.likes + 1,
-                  is_liked: !prev.is_liked,
-                }
-              : null,
-          )
-        }
+        // 立即刷新数据而不是更新本地状态
+        setRefreshKey(prev => prev + 1)
       }
     } catch (error) {
       console.error("点赞失败:", error)
@@ -329,8 +345,12 @@ function ShowcasePageContent() {
         headers: {
           ...ApiService.getAuthHeaders(),
           "Content-Type": "application/json",
+          'Cache-Control': 'no-cache, no-store, must-revalidate',
+          'Pragma': 'no-cache',
+          'Expires': '0'
         },
         body: JSON.stringify({ content: newComment }),
+        cache: 'no-store'
       })
 
       if (response.ok) {
@@ -355,7 +375,13 @@ function ShowcasePageContent() {
   const loadComments = async (modelId: number) => {
     try {
       const response = await fetch(`${API_BASE_URL}/showcase/models/${modelId}`, {
-        headers: ApiService.getAuthHeaders(),
+        headers: {
+          ...ApiService.getAuthHeaders(),
+          'Cache-Control': 'no-cache, no-store, must-revalidate',
+          'Pragma': 'no-cache',
+          'Expires': '0'
+        },
+        cache: 'no-store'
       })
       const data = await response.json()
       setComments(data.comments || [])
@@ -390,7 +416,13 @@ function ShowcasePageContent() {
     try {
       const response = await fetch(`${API_BASE_URL}/showcase/models/${modelToDelete.id}`, {
         method: "DELETE",
-        headers: ApiService.getAuthHeaders(),
+        headers: {
+          ...ApiService.getAuthHeaders(),
+          'Cache-Control': 'no-cache, no-store, must-revalidate',
+          'Pragma': 'no-cache',
+          'Expires': '0'
+        },
+        cache: 'no-store'
       });
 
       if (response.ok) {
@@ -398,8 +430,11 @@ function ShowcasePageContent() {
           title: "删除成功",
           description: "模型已删除",
         });
-        setPage(1); // 重新加载第一页
-        loadModels();
+        // 立即刷新模型列表
+        setPage(1);
+        setModels([]);  // 清空现有数据
+        setFilteredModels([]);  // 清空过滤数据
+        setRefreshKey(prev => prev + 1);  // 触发强制刷新
       } else {
         const errorData = await response.json().catch(() => null);
         const errorMessage = errorData?.detail?.[0]?.msg ||
@@ -668,8 +703,14 @@ function ShowcasePageContent() {
           open={uploadDialog}
           onOpenChange={setUploadDialog}
           onSuccess={() => {
+            console.log("分享成功，开始刷新数据...")
             setPage(1)
-            loadModels()
+            setModels([])  // 清空现有模型列表
+            setFilteredModels([])  // 清空过滤结果
+            setRefreshKey(prev => {
+              console.log("触发强制刷新，refreshKey:", prev + 1)
+              return prev + 1
+            })  // 触发强制刷新
           }}
         />
 

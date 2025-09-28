@@ -84,6 +84,44 @@ class Database:
             raise
 
     @classmethod
+    async def execute_and_fetch_one(cls, insert_query: str, insert_args: tuple, fetch_query: str, use_insert_id: bool = True) -> tuple:
+        """在同一个连接中执行插入和查询操作，确保数据一致性
+        
+        Args:
+            insert_query: 插入SQL语句
+            insert_args: 插入语句参数
+            fetch_query: 查询SQL语句，应包含一个%s占位符用于插入的ID
+            use_insert_id: 是否使用插入的ID作为查询参数
+        
+        Returns:
+            tuple: (insert_id, fetch_result)
+        """
+        try:
+            pool = await cls.get_pool()
+            async with pool.acquire() as conn:
+                async with conn.cursor() as cur:
+                    # 执行插入
+                    await cur.execute(insert_query, insert_args)
+                    insert_id = cur.lastrowid if insert_query.strip().upper().startswith('INSERT') else cur.rowcount
+                    
+                    # 在同一个连接中执行查询
+                    if fetch_query and use_insert_id:
+                        async with conn.cursor(aiomysql.DictCursor) as dict_cur:
+                            await dict_cur.execute(fetch_query, (insert_id,))
+                            result = await dict_cur.fetchone()
+                    else:
+                        result = None
+                    
+                    # 提交事务
+                    await conn.commit()
+                    
+                    return insert_id, result
+        except Exception as e:
+            logger.error("Failed to execute and fetch: insert_query: %s, fetch_query: %s, error: %s", 
+                        insert_query, fetch_query, str(e))
+            raise
+
+    @classmethod
     async def close(cls):
         """关闭数据库连接池"""
         if cls._pool is not None:

@@ -29,8 +29,7 @@ import { useToast } from "@/hooks/use-toast"
 import { cn } from "@/lib/utils"
 import React from "react"
 
-// 预加载常用路由
-const PREFETCH_ROUTES = ['/', '/dashboard', '/tasks', '/showcase', '/admin', '/admin/evaluation']
+
 
 export function Navbar() {
   const { user, logout } = useAuth()
@@ -41,12 +40,22 @@ export function Navbar() {
   const pathname = usePathname()
   const { toast } = useToast()
 
-  // 在组件挂载时预加载路由
+  // 根据用户权限预加载路由
   React.useEffect(() => {
-    PREFETCH_ROUTES.forEach(route => {
+    // 基础路由总是预加载
+    const basicRoutes = ['/', '/dashboard', '/tasks', '/showcase']
+    basicRoutes.forEach(route => {
       router.prefetch(route)
     })
-  }, [router])
+    
+    // 管理员路由只在确认是管理员后预加载
+    if (user?.role === "admin") {
+      const adminRoutes = ['/admin', '/admin/evaluation']
+      adminRoutes.forEach(route => {
+        router.prefetch(route)
+      })
+    }
+  }, [router, user])
 
   const handleAuthClick = (mode: "login" | "register") => {
     setAuthMode(mode)
@@ -89,10 +98,13 @@ export function Navbar() {
 
   const NavLink = ({ href, children, icon: Icon }: { href: string; children: React.ReactNode; icon: React.ComponentType<any> }) => {
     const isActive = pathname === href
+    // 对于管理员路由，只在用户是管理员时才启用预加载
+    const shouldPrefetch = href.startsWith('/admin') ? user?.role === "admin" : true
+    
     return (
       <Link
         href={href}
-        prefetch={true}
+        prefetch={shouldPrefetch}
         className={cn(
           "flex items-center gap-1.5 text-foreground/80 hover:text-foreground transition-colors cursor-pointer",
           "hover:bg-accent/50 px-2.5 py-2 rounded-md text-base",

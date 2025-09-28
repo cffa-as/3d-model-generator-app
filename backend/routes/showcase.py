@@ -215,51 +215,56 @@ async def create_showcase_model(
         )
         logger.info("准备插入的数据: %s", values)
 
+        # 使用事务方法确保插入和查询的数据一致性
+        fetch_query = """
+            SELECT 
+                s.*,
+                u.username,
+                (SELECT COUNT(*) FROM model_comments WHERE model_id = s.id) as comment_count
+            FROM model_showcase s
+            LEFT JOIN users u ON s.user_id = u.id
+            WHERE s.id = %s
+        """
+        
         try:
-            await db.execute(insert_query, values)
-            logger.info("模型展示记录插入成功")
-        except Exception as e:
-            logger.error("插入模型展示记录失败: %s", str(e))
-            raise HTTPException(status_code=500, detail=f"插入记录失败: {str(e)}")
-
-        # 获取最后插入的ID
-        try:
-            last_id_query = "SELECT LAST_INSERT_ID() as id"
-            result = await db.fetch_one(last_id_query)
-            logger.info("获取最后插入ID结果: %s", result)
-            if not result:
-                raise HTTPException(status_code=500, detail="无法获取插入ID")
-            model_id = result["id"]
-            logger.info("获取到的模型ID: %s", model_id)
-        except Exception as e:
-            logger.error("获取最后插入ID失败: %s", str(e))
-            raise HTTPException(status_code=500, detail=f"获取插入ID失败: {str(e)}")
-
-        # 获取创建的模型详情
-        try:
-            query = """
-                SELECT 
-                    s.*,
-                    u.username,
-                    (SELECT COUNT(*) FROM model_comments WHERE model_id = s.id) as comment_count
-                FROM model_showcase s
-                LEFT JOIN users u ON s.user_id = u.id
-                WHERE s.id = %s
-            """
-            created_model = await db.fetch_one(query, (model_id,))
-            logger.info("获取模型详情结果: %s", created_model)
+            model_id, created_model = await db.execute_and_fetch_one(
+                insert_query, values, 
+                fetch_query, True  # use_insert_id=True
+            )
             
+            # 如果第一次查询失败，重新查询
             if not created_model:
-                raise HTTPException(status_code=500, detail=f"无法获取ID为{model_id}的模型信息")
-
-            # 处理返回数据
-            result = dict(created_model)
+                logger.warning("首次查询失败，重新查询模型详情")
+                created_model = await db.fetch_one(fetch_query, (model_id,))
+            
+            logger.info("模型展示记录插入成功，ID: %s, 详情: %s", model_id, created_model)
+            
+            if not model_id:
+                raise HTTPException(status_code=500, detail="插入记录失败，未获取到ID")
+                
+            if not created_model:
+                # 如果仍然获取不到，尝试直接查询基础信息
+                logger.warning("无法获取完整模型信息，尝试获取基础信息")
+                basic_query = "SELECT * FROM model_showcase WHERE id = %s"
+                basic_model = await db.fetch_one(basic_query, (model_id,))
+                
+                if not basic_model:
+                    raise HTTPException(status_code=500, detail=f"无法获取ID为{model_id}的模型信息")
+                
+                # 手动构造返回数据
+                result = dict(basic_model)
+                result["username"] = None  # 用户名查询失败时设为None
+                result["comment_count"] = 0  # 评论数设为0
+            else:
+                # 处理返回数据
+                result = dict(created_model)
+            
             result["tags"] = json.loads(result["tags"]) if result["tags"] else []
-
             return result
+            
         except Exception as e:
-            logger.error("获取模型详情失败: %s", str(e))
-            raise HTTPException(status_code=500, detail=f"获取模型详情失败: {str(e)}")
+            logger.error("创建模型展示失败: %s", str(e))
+            raise HTTPException(status_code=500, detail=f"创建模型展示失败: {str(e)}")
 
     except HTTPException:
         raise
@@ -408,17 +413,14 @@ async def add_model_comment(
             INSERT INTO model_comments (model_id, user_id, content)
             VALUES (%s, %s, %s)
         """
-        await db.execute(
+        comment_id = await db.execute(
             insert_query,
             (model_id, current_user["user_id"], comment["content"])
         )
 
-        # 获取插入的评论ID
-        result = await db.fetch_one("SELECT LAST_INSERT_ID() as id")
-        if not result:
+        if not comment_id:
             raise HTTPException(status_code=500, detail="评论创建失败")
             
-        comment_id = result["id"]
         logger.info("评论创建成功，ID: %s", comment_id)
 
         # 立即获取完整的评论数据
@@ -431,9 +433,9 @@ async def add_model_comment(
                 u.username
             FROM model_comments c
             LEFT JOIN users u ON c.user_id = u.id
-            WHERE c.id = LAST_INSERT_ID()
+            WHERE c.id = %s
         """
-        new_comment = await db.fetch_one(comment_query)
+        new_comment = await db.fetch_one(comment_query, (comment_id,))
         if not new_comment:
             raise HTTPException(status_code=500, detail="无法获取新创建的评论")
 
