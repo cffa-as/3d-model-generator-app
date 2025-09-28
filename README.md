@@ -6,7 +6,9 @@
 1. **安装 Node.js 18+** - [下载地址](https://nodejs.org/)
 2. **安装 Python 3.8+** - [下载地址](https://python.org/)
 3. **安装 MySQL 8.0+** - [下载地址](https://dev.mysql.com/downloads/)
-4. **获取 API 密钥** - 需要 Meshy API Key
+4. **获取 API 密钥**：
+   - **Meshy API Key** - [申请地址](https://meshy.ai/) (3D模型生成)
+   - **DeepSeek API Key** - [申请地址](https://platform.deepseek.com/) (AI提示词生成)
 
 ### 数据库初始化
 ```bash
@@ -46,9 +48,16 @@ copy config.yaml.template config.yaml
 # cp config.yaml.template config.yaml
 
 # 编辑 config.yaml，填入以下必要配置：
-# - database: MySQL连接信息
-# - meshy_api_key: AI API密钥
-# - jwt_secret: JWT密钥（随机字符串）
+# mysql:
+#   host: localhost
+#   port: 3306
+#   user: root
+#   password: "your_password"
+#   database: model_generator
+# meshy:
+#   api_key: "your_meshy_api_key"
+# deepseek:
+#   api_key: "your_deepseek_api_key"
 
 # 启动后端服务
 python main.py
