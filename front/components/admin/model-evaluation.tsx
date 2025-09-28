@@ -186,14 +186,20 @@ export function ModelEvaluation() {
       setLoading(true)
       // 从任务历史获取所有用户的模型记录
       const response = await fetch(`${API_BASE_URL}/admin/tasks`, {
-        headers: ApiService.getAuthHeaders()
+        headers: {
+          ...ApiService.getAuthHeaders(),
+          'Cache-Control': 'no-cache, no-store, must-revalidate',
+          'Pragma': 'no-cache',
+          'Expires': '0'
+        },
+        cache: 'no-store'
       })
       const tasksData = await response.json()
       
-      // 转换任务数据为评估模型格式，只包含已完成的任务
-      const modelData = tasksData
-        .filter((task: any) => task.status === "completed") // 只保留已完成的任务
-        .map((task: any) => ({
+      console.log("API返回的任务数据:", tasksData.length, "个任务")
+      
+      // 转换任务数据为评估模型格式（后端已经只返回已完成的任务）
+      const modelData = tasksData.map((task: any) => ({
           id: task.id,
           user_id: task.user_id,
           username: task.username,
@@ -756,9 +762,7 @@ export function ModelEvaluation() {
             <CardContent>
               <div className="space-y-4">
                 {filteredModels
-                  .filter(model => model.user_rating !== null)
                   .sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime())
-                  .slice(0, 5)
                   .map((model) => (
                   <div
                     key={model.id}

@@ -224,6 +224,7 @@ export function ThreeModelViewer({
                         backgroundColor === bg.color ? "bg-gray-100" : ""
                       }`}
                       onClick={() => {
+                        console.log("切换背景颜色:", bg.color)
                         setBackgroundColor(bg.color)
                         setShowColorPicker(false)
                       }}
@@ -266,14 +267,14 @@ export function ThreeModelViewer({
         >
           <Canvas
             camera={{ position: [0, 0, 5], fov: 45 }}
-            style={{ width: "100%", height: "100%", background: backgroundColor }}
+            style={{ width: "100%", height: "100%" }}
             onError={(e) => {
               console.error("Canvas error:", e)
               setError("渲染3D模型时发生错误")
             }}
             gl={{
               antialias: true,
-              alpha: true,
+              alpha: false,
               powerPreference: "high-performance",
             }}
           >

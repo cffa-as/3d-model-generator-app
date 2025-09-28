@@ -69,6 +69,16 @@ async def get_statistics(current_user: dict = Depends(get_admin_user)) -> Dict[s
 async def get_all_tasks(current_user: dict = Depends(get_admin_user)) -> List[Dict[str, Any]]:
     """获取所有用户的任务列表（包含评估数据）"""
     try:
+        # 先查询数据库中的任务状态分布
+        status_query = """
+            SELECT status, COUNT(*) as count
+            FROM generation_tasks
+            GROUP BY status
+        """
+        status_stats = await db.fetch_all(status_query)
+        logger.info("任务状态分布:")
+        for stat in status_stats:
+            logger.info(f"  {stat['status']}: {stat['count']} 个")
         query = """
             SELECT 
                 t.id,
@@ -95,7 +105,11 @@ async def get_all_tasks(current_user: dict = Depends(get_admin_user)) -> List[Di
             ORDER BY t.created_at DESC
         """
         tasks = await db.fetch_all(query)
-        logger.info(f"获取到 {len(tasks)} 个任务")
+        logger.info(f"获取到 {len(tasks)} 个已完成任务")
+        
+        # 调试：显示任务详情
+        for i, task in enumerate(tasks):
+            logger.info(f"任务 {i+1}: ID={task['task_id'][:8]}, 用户={task['username']}, 状态={task['status']}, 时间={task['created_at']}")
         
         # 处理JSON字段
         result = []

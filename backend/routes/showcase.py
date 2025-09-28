@@ -548,6 +548,7 @@ async def get_designer_leaderboard(
                 works_count,
                 total_likes
             FROM designer_stats 
+            WHERE works_count > 0
             ORDER BY total_likes DESC 
             LIMIT %s
         """

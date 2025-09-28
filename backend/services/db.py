@@ -3,6 +3,7 @@ from typing import Optional, Dict, Any, List
 import yaml
 from pathlib import Path
 import logging
+from fastapi import HTTPException
 
 # 配置日志
 logging.basicConfig(level=logging.INFO)
@@ -193,6 +194,129 @@ class Database:
         except Exception as e:
             logger.error("Failed to execute transaction: %s", str(e))
             raise
+
+    @classmethod
+    async def register_user_transaction(cls, username: str, password: str, email: str) -> dict:
+        """在同一个连接中处理用户注册的完整流程"""
+        try:
+            pool = await cls.get_pool()
+            async with pool.acquire() as conn:
+                async with conn.cursor(aiomysql.DictCursor) as cur:
+                    # 检查用户名是否已存在
+                    await cur.execute("SELECT id FROM users WHERE username = %s", (username,))
+                    if await cur.fetchone():
+                        raise HTTPException(status_code=400, detail="用户名已存在")
+                    
+                    # 检查邮箱是否已存在
+                    await cur.execute("SELECT id FROM users WHERE email = %s", (email,))
+                    if await cur.fetchone():
+                        raise HTTPException(status_code=400, detail="邮箱已被注册")
+                    
+                    # 插入新用户
+                    await cur.execute(
+                        "INSERT INTO users (username, password, email) VALUES (%s, %s, %s)",
+                        (username, password, email)
+                    )
+                    user_id = cur.lastrowid
+                    
+                    # 在同一个连接中查询新创建的用户
+                    await cur.execute(
+                        "SELECT id, username, email, is_admin, created_at FROM users WHERE id = %s",
+                        (user_id,)
+                    )
+                    new_user = await cur.fetchone()
+                    
+                    # 提交事务
+                    await conn.commit()
+                    
+                    if not new_user:
+                        raise Exception("用户创建失败")
+                    
+                    return dict(new_user)
+        except HTTPException:
+            raise
+        except Exception as e:
+            logger.error("Failed to register user: %s", str(e))
+            raise HTTPException(status_code=500, detail=f"注册失败: {str(e)}")
+
+    @classmethod
+    async def register_and_authenticate(cls, username: str, password: str, email: str) -> tuple:
+        """在同一个连接中完成注册和登录验证的完整流程"""
+        try:
+            pool = await cls.get_pool()
+            async with pool.acquire() as conn:
+                async with conn.cursor(aiomysql.DictCursor) as cur:
+                    # 检查用户名是否已存在
+                    await cur.execute("SELECT id FROM users WHERE username = %s", (username,))
+                    if await cur.fetchone():
+                        raise HTTPException(status_code=400, detail="用户名已存在")
+                    
+                    # 检查邮箱是否已存在
+                    await cur.execute("SELECT id FROM users WHERE email = %s", (email,))
+                    if await cur.fetchone():
+                        raise HTTPException(status_code=400, detail="邮箱已被注册")
+                    
+                    # 插入新用户
+                    await cur.execute(
+                        "INSERT INTO users (username, password, email) VALUES (%s, %s, %s)",
+                        (username, password, email)
+                    )
+                    user_id = cur.lastrowid
+                    
+                    # 在同一个连接中查询新创建的用户（用于注册返回）
+                    await cur.execute(
+                        "SELECT id, username, email, is_admin, created_at FROM users WHERE id = %s",
+                        (user_id,)
+                    )
+                    new_user = await cur.fetchone()
+                    
+                    # 在同一个连接中再次查询用户（用于登录验证）
+                    await cur.execute(
+                        "SELECT id, username, password, is_admin FROM users WHERE id = %s",
+                        (user_id,)
+                    )
+                    auth_user = await cur.fetchone()
+                    
+                    # 提交事务
+                    await conn.commit()
+                    
+                    if not new_user or not auth_user:
+                        raise Exception("用户创建失败")
+                    
+                    return dict(new_user), dict(auth_user)
+        except HTTPException:
+            raise
+        except Exception as e:
+            logger.error("Failed to register and authenticate user: %s", str(e))
+            raise HTTPException(status_code=500, detail=f"注册失败: {str(e)}")
+
+    @classmethod
+    async def authenticate_user(cls, username: str, password: str) -> Optional[dict]:
+        """在同一个连接中验证用户登录"""
+        try:
+            pool = await cls.get_pool()
+            async with pool.acquire() as conn:
+                async with conn.cursor(aiomysql.DictCursor) as cur:
+                    # 查询用户
+                    await cur.execute(
+                        "SELECT id, username, password, is_admin FROM users WHERE username = %s",
+                        (username,)
+                    )
+                    user = await cur.fetchone()
+                    
+                    if not user:
+                        logger.warning(f"用户不存在: {username}")
+                        return None
+                    
+                    # 验证密码
+                    if user["password"] != password:
+                        logger.warning(f"密码错误: 用户={username}")
+                        return None
+                    
+                    return dict(user)
+        except Exception as e:
+            logger.error("Failed to authenticate user: %s", str(e))
+            return None
 
     @classmethod
     async def close(cls):
