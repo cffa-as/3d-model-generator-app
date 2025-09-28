@@ -10,6 +10,11 @@ meshy:
   api_key: "" 
   base_url: "https://api.meshy.ai"  
 
+deepseek:
+  api_key: ""
+  base_url: "https://api.deepseek.com"
+  model: "deepseek-chat"
+
 upload:
   dir: "./uploads"
   max_size: 10485760  # 10MB in bytes 

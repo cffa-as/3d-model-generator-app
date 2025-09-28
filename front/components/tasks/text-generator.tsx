@@ -12,7 +12,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Input } from "@/components/ui/input"
 import { Slider } from "@/components/ui/slider"
 import { ApiService } from "@/lib/api"
-import { Loader2, Sparkles, Type, Settings2, ChevronDown, ChevronUp, AlertCircle, Wand2, ArrowRight } from "lucide-react"
+import { Loader2, Sparkles, Type, Settings2, ChevronDown, ChevronUp, AlertCircle, Wand2, ArrowRight, Bot, RefreshCw, Trash2 } from "lucide-react"
 import { useToast } from "@/hooks/use-toast"
 import { cn } from "@/lib/utils"
 import {
@@ -133,6 +133,11 @@ export function TextGenerator({ onTaskCreated, mode = "preview", previewTaskId }
   
   const [similarModels, setSimilarModels] = useState<SimilarModelResult[]>([])
   const [currentModelIndex, setCurrentModelIndex] = useState(0)
+  
+  // AI生成提示词相关状态
+  const [isAiGenerating, setIsAiGenerating] = useState(false)
+  const [aiInput, setAiInput] = useState("")
+  const [showAiHelper, setShowAiHelper] = useState(false)
 
   const { toast } = useToast()
   const router = useRouter()
@@ -351,6 +356,83 @@ export function TextGenerator({ onTaskCreated, mode = "preview", previewTaskId }
     }
   }
 
+  // AI生成提示词
+  const handleAiGenerate = async () => {
+    if (!aiInput.trim()) {
+      toast({
+        title: "输入不能为空",
+        description: "请先输入您的简单描述",
+        variant: "destructive",
+      })
+      return
+    }
+
+    setIsAiGenerating(true)
+    try {
+      const result = await ApiService.aiGeneratePrompt(aiInput.trim(), "3d_model")
+      if (result.success) {
+        setPrompt(result.generated_prompt)
+        setAiInput("")
+        setShowAiHelper(false)
+        toast({
+          title: "AI生成成功",
+          description: "已为您生成详细的提示词",
+        })
+      }
+    } catch (error) {
+      toast({
+        title: "AI生成失败",
+        description: error instanceof Error ? error.message : "生成失败，请重试",
+        variant: "destructive",
+      })
+    } finally {
+      setIsAiGenerating(false)
+    }
+  }
+
+  // AI优化提示词
+  const handleAiOptimize = async () => {
+    if (!prompt.trim()) {
+      toast({
+        title: "提示词为空",
+        description: "请先输入提示词",
+        variant: "destructive",
+      })
+      return
+    }
+
+    setIsAiGenerating(true)
+    try {
+      const result = await ApiService.aiOptimizePrompt(prompt.trim())
+      if (result.success) {
+        setPrompt(result.optimized_prompt)
+        toast({
+          title: "AI优化成功",
+          description: "已为您优化提示词",
+        })
+      }
+    } catch (error) {
+      toast({
+        title: "AI优化失败",
+        description: error instanceof Error ? error.message : "优化失败，请重试",
+        variant: "destructive",
+      })
+    } finally {
+      setIsAiGenerating(false)
+    }
+  }
+
+  // 清空提示词
+  const handleClearPrompt = () => {
+    setPrompt("")
+    setAiInput("")
+    setError("")
+    toast({
+      title: "已清空",
+      description: "提示词已清空",
+    })
+  }
+
   return (
     <>
       <Card className="glass">
@@ -384,9 +466,100 @@ export function TextGenerator({ onTaskCreated, mode = "preview", previewTaskId }
           <form onSubmit={handleSubmit} className="space-y-6">
             {/* 文本输入 */}
             <div className="space-y-2">
-              <Label htmlFor="prompt">
-                {mode === "preview" ? "描述文本" : "精细化提示"}
-              </Label>
+              <div className="flex items-center justify-between">
+                <Label htmlFor="prompt">
+                  {mode === "preview" ? "描述文本" : "精细化提示"}
+                </Label>
+                <div className="flex items-center gap-2">
+                  <Button
+                    type="button"
+                    variant={showAiHelper ? "default" : "outline"}
+                    size="sm"
+                    onClick={() => setShowAiHelper(!showAiHelper)}
+                    className={cn(
+                      "gap-2 font-medium transition-all duration-200",
+                      showAiHelper 
+                        ? "bg-gradient-to-r from-sky-300 to-blue-400 hover:from-sky-400 hover:to-blue-500 text-white shadow-md" 
+                        : "border-2 border-sky-200 text-sky-600 hover:border-sky-300 hover:text-sky-700 hover:bg-sky-50"
+                    )}
+                  >
+                    <Bot className="h-4 w-4" />
+                    AI助手
+                  </Button>
+                  {prompt.trim() && (
+                    <>
+                      <Button
+                        type="button"
+                        variant="outline"
+                        size="sm"
+                        onClick={handleAiOptimize}
+                        disabled={isAiGenerating}
+                        className="gap-2"
+                      >
+                        {isAiGenerating ? (
+                          <Loader2 className="h-4 w-4 animate-spin" />
+                        ) : (
+                          <RefreshCw className="h-4 w-4" />
+                        )}
+                        优化
+                      </Button>
+                      <Button
+                        type="button"
+                        variant="outline"
+                        size="sm"
+                        onClick={handleClearPrompt}
+                        className="gap-2 text-red-600 hover:text-red-700 hover:border-red-300"
+                      >
+                        <Trash2 className="h-4 w-4" />
+                        清空
+                      </Button>
+                    </>
+                  )}
+                </div>
+              </div>
+
+              {/* AI助手面板 */}
+              {showAiHelper && (
+                <Card className="p-4 bg-gradient-to-r from-blue-50 to-purple-50 border-blue-200">
+                  <div className="space-y-3">
+                    <div className="flex items-center gap-2">
+                      <Bot className="h-5 w-5 text-blue-600" />
+                      <h4 className="font-medium text-blue-900">AI智能生成提示词</h4>
+                    </div>
+                    <p className="text-sm text-blue-700">
+                      只需简单描述您的想法，AI将为您生成详细的3D模型提示词
+                    </p>
+                    <div className="flex gap-2">
+                      <Input
+                        value={aiInput}
+                        onChange={(e) => setAiInput(e.target.value)}
+                        placeholder="例如：一只猫、未来机器人、古典花瓶..."
+                        className="flex-1"
+                        disabled={isAiGenerating}
+                        onKeyDown={(e) => {
+                          if (e.key === 'Enter' && !e.shiftKey) {
+                            e.preventDefault()
+                            handleAiGenerate()
+                          }
+                        }}
+                      />
+                      <Button
+                        onClick={handleAiGenerate}
+                        disabled={isAiGenerating || !aiInput.trim()}
+                        className="gap-2"
+                      >
+                        {isAiGenerating ? (
+                          <Loader2 className="h-4 w-4 animate-spin" />
+                        ) : (
+                          <Sparkles className="h-4 w-4" />
+                        )}
+                        生成
+                      </Button>
+                    </div>
+                  </div>
+                </Card>
+              )}
+
               <Textarea
                 id="prompt"
                 value={prompt}

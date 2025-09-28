@@ -8,6 +8,7 @@ from services.auth import get_current_user
 from services.meshy_client import MeshyClient
 from services.cache_service import ModelCacheService
 from services.storage import storage_service
+from services.deepseek_client import deepseek_client
 from models.task import TaskCreate
 import httpx
 import os
@@ -95,6 +96,66 @@ async def check_similar_models(
     except Exception as e:
         logger.error(f"检查相似模型失败: {e}")
         return {"found": False, "models": []}
+
+@router.post("/ai-generate-prompt")
+async def ai_generate_prompt(
+    request: dict,
+    current_user: dict = Depends(get_current_user)
+):
+    """
+    使用AI生成详细的提示词
+    """
+    try:
+        user_input = request.get("user_input", "").strip()
+        prompt_type = request.get("prompt_type", "3d_model")
+        
+        if not user_input:
+            raise HTTPException(status_code=400, detail="请提供用户输入")
+        
+        # 调用DeepSeek API生成提示词
+        generated_prompt = await deepseek_client.generate_prompt(
+            user_input=user_input,
+            prompt_type=prompt_type
+        )
+        
+        return {
+            "success": True,
+            "generated_prompt": generated_prompt,
+            "original_input": user_input
+        }
+        
+    except Exception as e:
+        logger.error(f"AI生成提示词失败: {e}")
+        raise HTTPException(status_code=500, detail=f"生成提示词失败: {str(e)}")
+
+@router.post("/ai-optimize-prompt")
+async def ai_optimize_prompt(
+    request: dict,
+    current_user: dict = Depends(get_current_user)
+):
+    """
+    使用AI优化现有提示词
+    """
+    try:
+        original_prompt = request.get("original_prompt", "").strip()
+        
+        if not original_prompt:
+            raise HTTPException(status_code=400, detail="请提供原始提示词")
+        
+        # 调用DeepSeek API优化提示词
+        optimized_prompt = await deepseek_client.optimize_prompt(
+            original_prompt=original_prompt
+        )
+        
+        return {
+            "success": True,
+            "optimized_prompt": optimized_prompt,
+            "original_prompt": original_prompt
+        }
+        
+    except Exception as e:
+        logger.error(f"AI优化提示词失败: {e}")
+        raise HTTPException(status_code=500, detail=f"优化提示词失败: {str(e)}")
 
 @router.post("/generate")
 async def create_task(
