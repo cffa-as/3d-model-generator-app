@@ -49,13 +49,18 @@ async def get_current_user(token: str = Depends(oauth2_scheme)) -> Dict[str, Any
         headers={"WWW-Authenticate": "Bearer"},
     )
     try:
+        logger.info(f"解析JWT token: {token[:20]}...")
+        
         # 解码JWT令牌
         payload = jwt.decode(token, SECRET_KEY, algorithms=[ALGORITHM])
         user_id: int = payload.get("user_id")
         username: str = payload.get("username")
         is_admin: bool = payload.get("is_admin", False)
         
+        logger.info(f"JWT解析成功: user_id={user_id}, username={username}")
+        
         if user_id is None or username is None:
+            logger.error(f"JWT payload缺少必要字段: user_id={user_id}, username={username}")
             raise credentials_exception
             
         return {
@@ -63,7 +68,8 @@ async def get_current_user(token: str = Depends(oauth2_scheme)) -> Dict[str, Any
             "username": username,
             "is_admin": is_admin
         }
-    except JWTError:
+    except JWTError as e:
+        logger.error(f"JWT解析失败: {str(e)}")
         raise credentials_exception
     except Exception as e:
         logger.error("获取当前用户失败: %s", str(e))

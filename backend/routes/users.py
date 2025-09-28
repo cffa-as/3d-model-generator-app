@@ -17,6 +17,8 @@ oauth2_scheme = OAuth2PasswordBearer(tokenUrl="/api/users/token")  # 修改token
 async def get_user_me(current_user: Dict = Depends(get_current_user)):
     """获取当前用户信息"""
     try:
+        logger.info(f"获取用户信息: user_id={current_user.get('user_id')}")
+        
         query = """
             SELECT id, username, email, is_admin, created_at
             FROM users
@@ -25,6 +27,7 @@ async def get_user_me(current_user: Dict = Depends(get_current_user)):
         user = await db.fetch_one(query, (current_user["user_id"],))
         
         if not user:
+            logger.error(f"用户不存在: user_id={current_user['user_id']}")
             raise HTTPException(status_code=404, detail="用户不存在")
             
         return {
@@ -34,9 +37,11 @@ async def get_user_me(current_user: Dict = Depends(get_current_user)):
             "is_admin": user["is_admin"],
             "created_at": user["created_at"].isoformat() if user["created_at"] else None
         }
+    except HTTPException:
+        raise
     except Exception as e:
-        logger.error("获取用户信息失败: %s", str(e))
-        raise HTTPException(status_code=500, detail=str(e))
+        logger.error("获取用户信息失败: user_id=%s, error=%s", current_user.get("user_id"), str(e))
+        raise HTTPException(status_code=500, detail=f"获取用户信息失败: {str(e)}")
 
 @router.post("/register")
 async def register_user(user: UserCreate) -> Dict[str, Any]:
