@@ -1,7 +1,7 @@
 "use client"
 
 import { useState, useEffect } from "react"
-import { useAuth } from "@/hooks/use-auth"
+import { useAuth, AuthProvider } from "@/hooks/use-auth"
 import { useRouter } from "next/navigation"
 import { Navbar } from "@/components/layout/navbar"
 import { ModelEvaluation } from "@/components/admin/model-evaluation"
@@ -30,20 +30,20 @@ interface Task {
   rated_at: string | null
 }
 
-export default function EvaluationPage() {
+function EvaluationPage() {
   const { user, isLoading } = useAuth()
   const router = useRouter()
   const [tasks, setTasks] = useState<Task[]>([])
   const [loading, setLoading] = useState(true)
 
   useEffect(() => {
-    if (!isLoading && (!user || user.role !== "admin")) {
-      router.push("/")
+    if (!isLoading && !user) {
+      router.push("/auth")
     }
   }, [user, isLoading, router])
 
   useEffect(() => {
-    if (user?.role === "admin") {
+    if (user) {
       loadTasks()
     }
   }, [user])
@@ -74,7 +74,7 @@ export default function EvaluationPage() {
     )
   }
 
-  if (!user || user.role !== "admin") {
+  if (!user) {
     return null
   }
 
@@ -181,5 +181,13 @@ export default function EvaluationPage() {
         </div>
       </div>
     </div>
+  )
+}
+
+export default function Page() {
+  return (
+    <AuthProvider>
+      <EvaluationPage />
+    </AuthProvider>
   )
 } 
