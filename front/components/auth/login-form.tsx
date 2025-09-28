@@ -37,15 +37,24 @@ export function LoginForm({ onSwitchToRegister, onClose }: LoginFormProps) {
     try {
       await login(username, password)
       toast({
-        title: "登录成功",
-        description: "欢迎回来",
+        title: "🎉 登录成功！",
+        description: "欢迎回来，正在为您跳转...",
       })
       if (onClose) {
         onClose()
       }
-      router.push("/dashboard")
+      // 短暂延迟让用户看到成功提示
+      setTimeout(() => {
+        router.push("/dashboard")
+      }, 800)
     } catch (err) {
-      setError(err instanceof Error ? err.message : "登录失败")
+      const errorMessage = err instanceof Error ? err.message : "登录失败"
+      setError(errorMessage)
+      toast({
+        title: "登录失败",
+        description: errorMessage,
+        variant: "destructive",
+      })
     }
   }
 
@@ -81,7 +90,11 @@ export function LoginForm({ onSwitchToRegister, onClose }: LoginFormProps) {
               className="bg-input/50"
             />
           </div>
-          {error && <div className="text-destructive text-sm text-center">{error}</div>}
+          {error && (
+            <div className="bg-destructive/10 border border-destructive/20 rounded-md p-3">
+              <p className="text-sm text-destructive font-medium text-center">{error}</p>
+            </div>
+          )}
           <Button type="submit" className="w-full" disabled={isLoading}>
             {isLoading ? (
               <>

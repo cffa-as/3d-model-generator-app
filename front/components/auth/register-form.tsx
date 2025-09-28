@@ -55,15 +55,24 @@ export function RegisterForm({ onSwitchToLogin, onClose }: RegisterFormProps) {
     try {
       await register(username, password, email)
       toast({
-        title: "注册成功",
-        description: "欢迎使用3D模型生成服务",
+        title: "🎉 注册成功！",
+        description: "欢迎使用3D模型生成服务，正在为您跳转...",
       })
       if (onClose) {
         onClose()
       }
-      router.push("/dashboard")
+      // 短暂延迟让用户看到成功提示
+      setTimeout(() => {
+        router.push("/dashboard")
+      }, 1000)
     } catch (err) {
-      setError(err instanceof Error ? err.message : "注册失败")
+      const errorMessage = err instanceof Error ? err.message : "注册失败"
+      setError(errorMessage)
+      toast({
+        title: "注册失败",
+        description: errorMessage,
+        variant: "destructive",
+      })
     }
   }
 
@@ -123,7 +132,11 @@ export function RegisterForm({ onSwitchToLogin, onClose }: RegisterFormProps) {
               className="bg-input/50"
             />
           </div>
-          {error && <div className="text-destructive text-sm text-center">{error}</div>}
+          {error && (
+            <div className="bg-destructive/10 border border-destructive/20 rounded-md p-3">
+              <p className="text-sm text-destructive font-medium text-center">{error}</p>
+            </div>
+          )}
           <Button type="submit" className="w-full" disabled={isLoading}>
             {isLoading ? (
               <>

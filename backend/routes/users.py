@@ -46,15 +46,17 @@ async def register_user(user: UserCreate) -> Dict[str, Any]:
         query = "SELECT id FROM users WHERE username = %s"
         existing_user = await db.fetch_one(query, (user.username,))
         if existing_user:
-            # 如果用户已存在，返回200状态码和提示信息
-            return {"message": "用户已存在"}
+            # 如果用户已存在，返回错误而不是成功
+            logger.warning(f"用户名已存在: {user.username}")
+            raise HTTPException(status_code=400, detail="用户名已存在")
 
         # 检查邮箱是否已存在
         query = "SELECT id FROM users WHERE email = %s"
         existing_email = await db.fetch_one(query, (user.email,))
         if existing_email:
-            # 如果邮箱已存在，返回200状态码和提示信息
-            return {"message": "邮箱已被注册"}
+            # 如果邮箱已存在，返回错误而不是成功
+            logger.warning(f"邮箱已被注册: {user.email}")
+            raise HTTPException(status_code=400, detail="邮箱已被注册")
 
         # 使用同一个连接创建用户并获取信息
         insert_query = """
@@ -67,13 +69,18 @@ async def register_user(user: UserCreate) -> Dict[str, Any]:
             WHERE id = %s
         """
         
+        logger.info(f"开始创建用户: {user.username}, {user.email}")
+        
         user_id, new_user = await db.create_model_with_immediate_fetch(
             insert_query, 
             (user.username, user.password, user.email),
             fetch_query
         )
         
+        logger.info(f"用户创建结果: user_id={user_id}, new_user={new_user}")
+        
         if not new_user:
+            logger.error(f"用户创建失败: user_id={user_id}")
             raise HTTPException(status_code=500, detail="用户创建失败")
 
         return {
@@ -85,28 +92,42 @@ async def register_user(user: UserCreate) -> Dict[str, Any]:
             "message": "注册成功"
         }
 
+    except HTTPException:
+        # 重新抛出HTTP异常（如用户名重复、邮箱重复等）
+        raise
     except Exception as e:
         logger.error("用户注册失败: %s", str(e))
-        raise HTTPException(status_code=500, detail=str(e))
+        raise HTTPException(status_code=500, detail=f"注册失败: {str(e)}")
 
 @router.post("/token", response_model=Token)
 async def login_for_access_token(form_data: OAuth2PasswordRequestForm = Depends()) -> Token:
     """用户登录"""
     try:
         # 查询用户
-        query = """
-            SELECT id, username, password, is_admin
-            FROM users
-            WHERE username = %s AND password = %s
-        """
-        user = await db.fetch_one(query, (form_data.username, form_data.password))
+        logger.info(f"尝试登录: 用户名={form_data.username}")
         
-        if not user:
+        # 先查询用户是否存在
+        check_query = "SELECT id, username, password, is_admin FROM users WHERE username = %s"
+        existing_user = await db.fetch_one(check_query, (form_data.username,))
+        
+        if not existing_user:
+            logger.warning(f"用户不存在: {form_data.username}")
             raise HTTPException(
                 status_code=401,
                 detail="用户名或密码错误",
                 headers={"WWW-Authenticate": "Bearer"},
             )
+        
+        # 验证密码
+        if existing_user["password"] != form_data.password:
+            logger.warning(f"密码错误: 用户={form_data.username}")
+            raise HTTPException(
+                status_code=401,
+                detail="用户名或密码错误",
+                headers={"WWW-Authenticate": "Bearer"},
+            )
+        
+        user = existing_user
 
         # 创建访问令牌
         token_data = {
