@@ -310,8 +310,7 @@ function TaskDetailPage() {
   }, [task?.status, loadRating])
 
   const handleRatingSubmitted = useCallback(async () => {
-    // 短暂延迟以确保后端数据已更新
-    await new Promise(resolve => setTimeout(resolve, 500))
+    // 立即重新加载评分数据
     await loadRating()
   }, [loadRating])
 
@@ -712,7 +711,7 @@ function TaskDetailPage() {
             )}
 
             {/* 评分区域 */}
-            {task.status === "completed" && !rating?.rating && (
+            {task.status === "completed" && (
               <Card className="glass">
                 <CardHeader>
                   <CardTitle>模型评分</CardTitle>
@@ -723,45 +722,48 @@ function TaskDetailPage() {
                       <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary mx-auto"></div>
                       <p className="text-sm text-muted-foreground mt-2">加载评分中...</p>
                     </div>
+                  ) : rating?.rating ? (
+                    // 已评分显示
+                    <div className="space-y-4">
+                      <div className="flex items-center gap-1">
+                        {[...Array(10)].map((_, i) => (
+                          <Star
+                            key={i}
+                            className={cn(
+                              "h-5 w-5",
+                              i < rating.rating
+                                ? "fill-yellow-400 text-yellow-400"
+                                : "text-muted-foreground"
+                            )}
+                          />
+                        ))}
+                        <span className="ml-2 text-sm text-muted-foreground">
+                          {rating.rating} 分
+                        </span>
+                      </div>
+                      {rating.comment && (
+                        <p className="text-sm text-muted-foreground">
+                          {rating.comment}
+                        </p>
+                      )}
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        onClick={() => {
+                          setRating(null)  // 重置评分状态，允许重新评分
+                        }}
+                      >
+                        重新评分
+                      </Button>
+                    </div>
                   ) : (
+                    // 评分组件
                     <ModelRating
                       taskId={task.task_id}
                       initialRating={rating?.rating}
                       initialComment={rating?.comment}
                       onRatingSubmitted={handleRatingSubmitted}
                     />
-                  )}
-                </CardContent>
-              </Card>
-            )}
-
-            {/* 已评分显示 */}
-            {task.status === "completed" && rating?.rating && (
-              <Card className="glass">
-                <CardHeader>
-                  <CardTitle>您的评分</CardTitle>
-                </CardHeader>
-                <CardContent>
-                  <div className="flex items-center gap-1">
-                    {[...Array(10)].map((_, i) => (
-                      <Star
-                        key={i}
-                        className={cn(
-                          "h-5 w-5",
-                          i < rating.rating
-                            ? "fill-yellow-400 text-yellow-400"
-                            : "text-muted-foreground"
-                        )}
-                      />
-                    ))}
-                    <span className="ml-2 text-sm text-muted-foreground">
-                      {rating.rating} 分
-                    </span>
-                  </div>
-                  {rating.comment && (
-                    <p className="mt-2 text-sm text-muted-foreground">
-                      {rating.comment}
-                    </p>
                   )}
                 </CardContent>
               </Card>

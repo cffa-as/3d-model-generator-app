@@ -56,21 +56,25 @@ async def register_user(user: UserCreate) -> Dict[str, Any]:
             # 如果邮箱已存在，返回200状态码和提示信息
             return {"message": "邮箱已被注册"}
 
-        # 创建新用户
-        query = """
+        # 使用同一个连接创建用户并获取信息
+        insert_query = """
             INSERT INTO users (username, password, email)
             VALUES (%s, %s, %s)
         """
-        values = (user.username, user.password, user.email)
-        await db.execute(query, values)
-
-        # 获取新创建的用户
-        query = """
+        fetch_query = """
             SELECT id, username, email, is_admin, created_at
             FROM users
-            WHERE username = %s
+            WHERE id = %s
         """
-        new_user = await db.fetch_one(query, (user.username,))
+        
+        user_id, new_user = await db.create_model_with_immediate_fetch(
+            insert_query, 
+            (user.username, user.password, user.email),
+            fetch_query
+        )
+        
+        if not new_user:
+            raise HTTPException(status_code=500, detail="用户创建失败")
 
         return {
             "id": new_user["id"],

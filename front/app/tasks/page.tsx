@@ -244,6 +244,8 @@ function TasksPage() {
         title: "删除成功",
         description: "任务已成功删除",
       })
+      // 清空缓存并重新加载
+      setCachedTasks({ data: null, timestamp: 0 })
       loadTasks()
     } catch (error) {
       toast({

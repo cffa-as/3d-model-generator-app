@@ -404,23 +404,12 @@ async def add_model_comment(
         if not model:
             raise HTTPException(status_code=404, detail="模型不存在")
 
-        # 插入评论
+        # 使用同一个连接创建评论并获取信息
         insert_query = """
             INSERT INTO model_comments (model_id, user_id, content)
             VALUES (%s, %s, %s)
         """
-        comment_id = await db.execute(
-            insert_query,
-            (model_id, current_user["user_id"], comment["content"])
-        )
-
-        if not comment_id:
-            raise HTTPException(status_code=500, detail="评论创建失败")
-            
-        logger.info("评论创建成功，ID: %s", comment_id)
-
-        # 立即获取完整的评论数据
-        comment_query = """
+        fetch_query = """
             SELECT 
                 c.id,
                 c.user_id,
@@ -431,7 +420,16 @@ async def add_model_comment(
             LEFT JOIN users u ON c.user_id = u.id
             WHERE c.id = %s
         """
-        new_comment = await db.fetch_one(comment_query, (comment_id,))
+        
+        comment_id, new_comment = await db.create_model_with_immediate_fetch(
+            insert_query,
+            (model_id, current_user["user_id"], comment["content"]),
+            fetch_query
+        )
+
+        if not comment_id:
+            raise HTTPException(status_code=500, detail="评论创建失败")
+            
         if not new_comment:
             raise HTTPException(status_code=500, detail="无法获取新创建的评论")
 

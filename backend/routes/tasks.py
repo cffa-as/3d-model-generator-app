@@ -142,19 +142,18 @@ async def create_task(
                     json.dumps(cached_result.get("model_urls", {})),
                 )
                 
-                await db.execute(query, values)
-                
-                # 添加小延迟确保数据已提交
-                await asyncio.sleep(0.1)
-
-                # 获取刚创建的任务
-                query = """
+                # 使用同一连接创建任务并获取信息
+                insert_query = query
+                fetch_query = """
                     SELECT id, task_id, task_type, prompt, status, model_urls, 
                            created_at, started_at, finished_at, progress
                     FROM generation_tasks
-                    WHERE task_id = %s
+                    WHERE id = %s
                 """
-                task_record = await db.fetch_one(query, (task_id,))
+                
+                _, task_record = await db.create_model_with_immediate_fetch(
+                    insert_query, values, fetch_query
+                )
                 
                 if not task_record:
                     raise HTTPException(status_code=500, detail="保存任务失败")
@@ -579,8 +578,15 @@ async def delete_task(task_id: str, current_user: dict = Depends(get_current_use
 
         # 删除所有精细化任务
         for refined_task in refined_tasks:
+            # 先删除数据库记录
+            delete_refined_query = """
+                DELETE FROM generation_tasks
+                WHERE id = %s AND user_id = %s
+            """
+            await db.execute(delete_refined_query, (refined_task["id"], current_user["user_id"]))
+            
+            # 尝试删除远程任务（失败也不影响结果）
             try:
-                # 尝试删除远程任务
                 if refined_task["task_type"] == "text":
                     await meshy_client.delete_text_task(refined_task["task_id"])
                 elif refined_task["task_type"] == "image":
@@ -588,16 +594,16 @@ async def delete_task(task_id: str, current_user: dict = Depends(get_current_use
                 elif refined_task["task_type"] == "multi_image":
                     await meshy_client.delete_multi_image_task(refined_task["task_id"])
             except Exception as e:
-                logger.error(f"删除精细化远程任务失败 {refined_task['task_id']}: {str(e)}")
+                logger.warning(f"删除精细化远程任务失败 {refined_task['task_id']}: {str(e)} (本地数据已删除)")
 
-            # 删除数据库记录
-            delete_refined_query = """
-                DELETE FROM generation_tasks
-                WHERE id = %s AND user_id = %s
-            """
-            await db.execute(delete_refined_query, (refined_task["id"], current_user["user_id"]))
+        # 先删除数据库记录
+        delete_query = """
+            DELETE FROM generation_tasks
+            WHERE id = %s AND user_id = %s
+        """
+        await db.execute(delete_query, (task["id"], current_user["user_id"]))
 
-        # 删除原始任务的远程数据
+        # 尝试删除远程任务（失败也不影响结果，因为可能是第三方API问题）
         try:
             if task["task_type"] == "text":
                 await meshy_client.delete_text_task(task_id)
@@ -606,14 +612,7 @@ async def delete_task(task_id: str, current_user: dict = Depends(get_current_use
             elif task["task_type"] == "multi_image":
                 await meshy_client.delete_multi_image_task(task_id)
         except Exception as e:
-            logger.error(f"删除原始远程任务失败 {task_id}: {str(e)}")
-
-        # 删除原始任务的数据库记录
-        delete_query = """
-            DELETE FROM generation_tasks
-            WHERE id = %s AND user_id = %s
-        """
-        await db.execute(delete_query, (task["id"], current_user["user_id"]))
+            logger.warning(f"删除远程任务失败 {task_id}: {str(e)} (本地数据已删除)")
 
         return {"message": "任务已删除"}
 
